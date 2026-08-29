@@ -77,7 +77,7 @@ catalog:
   #   が知らないルール名を参照することはない。逆向き（ultracite が新しく
   #   oxlint 1.78.0 未収録のルール名を参照する）だと preset 読み込み時に
   #   loud fail する（ADR 0002 が M0 スパイクで実測した失敗モード）。
-  ultracite: 7.10.2
+  ultracite: 7.10.6
 
   # テスト（§4）
   vitest: 4.1.10
