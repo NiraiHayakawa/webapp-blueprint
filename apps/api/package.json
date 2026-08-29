@@ -1,0 +1,25 @@
+{
+  "name": "@webapp-blueprint/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "最小の縦切り（バックエンド）。DDD + Clean Architecture の配線を実証するだけの内容で、消して始めてよい（docs/plan/Template/20260807_template-design.md §9）",
+  "type": "module",
+  "exports": {
+    ".": "./src/composition.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/sdk-node": "catalog:",
+    "@opentelemetry/sdk-trace-base": "catalog:"
+  },
+  "devDependencies": {
+    "@amiceli/vitest-cucumber": "catalog:",
+    "@opentelemetry/core": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

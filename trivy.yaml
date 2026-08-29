@@ -1,0 +1,54 @@
+# Trivy の設定ファイル(trivy.yaml はカレントディレクトリから自動検出される。
+# 2026-08-08、trivy 0.72.0 の起動ログ "Loaded file_path=trivy.yaml" で確認)。
+#
+# 正本: docs/plan/Template/20260807_template-design.md §5「選定ツール」/
+# docs/recipes/tools/ci.md「4. 脆弱性 / SAST」。実行は mise.toml の
+# [tasks."check:vulnerabilities"](`trivy fs --include-dev-deps .`)。
+#
+# 何をスキャンするか(テンプレの現状に照らして意味のあるものだけに絞る):
+# - vuln: 依存の既知脆弱性(SCA)。対象は pnpm-lock.yaml。コンテナイメージは
+#   ビルドしないため trivy image は使わない
+# - misconfig: infra/ の Terraform 設定ミス。misconfig-scanners を
+#   terraform だけに絞る(下記)
+# - secret はスキャンしない(fs の既定は [vuln, secret] だが、下記
+#   scan.scanners で明示的に上書きしている)。secretlint と役割が重複する
+#   秘密スキャンを二重に持たない(docs/recipes/tools/ci.md「secretlint との
+#   守備範囲の違い」参照)
+scan:
+  scanners:
+    - vuln
+    - misconfig
+  # node_modules を除外する理由(2026-08-08 実測): 除外しないと
+  # node_modules 配下に vendor された Dockerfile(例:
+  # yaml-language-server@1.23.0 が同梱する Dockerfile)まで misconfig
+  # スキャンの対象になり、自分たちが書いていないコードへの指摘で
+  # ノイズになる。他はビルド生成物(.gitignore と同じ対象)。
+  skip-dirs:
+    - node_modules
+    - .turbo
+    - .blume
+    - coverage
+    - playwright-report
+    - test-results
+    - blob-report
+
+misconfiguration:
+  # terraform 以外(dockerfile/kubernetes/helm/ansible等)はテンプレに
+  # 該当ファイルが無いため走らせない。node_modules を skip-dirs で除外して
+  # いても、将来 apps/ 配下に Dockerfile 等が増えたときに無関係なスキャナが
+  # 誤検知を出す余地を先に塞ぐ(tflint が provider プラグイン無しで
+  # "terraform" ルールセットだけに絞っているのと同じ考え方)。
+  misconfig-scanners:
+    - terraform
+
+severity:
+  - HIGH
+  - CRITICAL
+
+# --include-dev-deps は package: セクションではなく CLI フラグとして渡す
+# (mise.toml の [tasks."check:vulnerabilities"] 参照)。config file 経由
+# (package.include-dev-deps / vulnerability.include-dev-deps のどちらを
+# 試しても)ではこのオプションが反映されないことを 2026-08-08 に実測した
+# (trivy 0.72.0)。CLI フラグでは反映されることを確認済み。このリポジトリは
+# 全ワークスペースが devDependencies のみのため(knip.jsonc の同じ注記
+# 参照)、このフラグが無いと全パッケージが除外され「対象ゼロで緑」になる。

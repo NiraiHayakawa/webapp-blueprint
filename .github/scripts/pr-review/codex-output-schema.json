@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "findings"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "PR全体の要約レビュー(日本語)。PRコメントの本文にそのまま使う。"
+    },
+    "findings": {
+      "type": "array",
+      "description": "行に紐づく具体的な指摘。無い場合は空配列を返すこと(null不可)。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "body"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "リポジトリルートからの相対パス"
+          },
+          "line": {
+            "type": "integer",
+            "description": "コメントを付けるdiff側の行番号(head側)"
+          },
+          "side": {
+            "type": "string",
+            "enum": ["LEFT", "RIGHT"],
+            "description": "既定はRIGHT(変更後)。削除行を指す場合のみLEFT。"
+          },
+          "body": {
+            "type": "string",
+            "description": "指摘本文(日本語)。hidden markerは付けない(投稿側スクリプトが付与する)。"
+          }
+        }
+      }
+    }
+  }
+}

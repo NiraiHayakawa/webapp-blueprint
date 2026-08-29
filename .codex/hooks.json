@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__ramune__.*|ramune_.*|apply_diff|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e 'import fs from \"node:fs\";import path from \"node:path\";import { pathToFileURL } from \"node:url\";function f(d){if(fs.existsSync(path.join(d,\"tools/ramune/hooks/src/adapters/codex/cli.ts\")))return d;const p=path.dirname(d);if(p===d)return process.cwd();return f(p);}await import(pathToFileURL(path.join(f(process.cwd()),\"tools/ramune/hooks/src/adapters/codex/cli.ts\")).href);'"
+          }
+        ]
+      }
+    ]
+  }
+}

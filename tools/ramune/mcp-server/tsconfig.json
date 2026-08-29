@@ -1,0 +1,9 @@
+{
+  // TypeScript 7.0.2（tsgo）は node_modules/@types 配下を自動で取り込まない
+  // （packages/graph/tsconfig.json と同じ理由）。
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

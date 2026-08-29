@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "blume-docs": {
+      "type": "http",
+      "url": "http://localhost:4321/mcp"
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@colbymchenry/codegraph@1.5.0", "serve", "--mcp"],
+      "env": {
+        "CODEGRAPH_TELEMETRY": "0"
+      }
+    },
+    "ramune": {
+      "type": "http",
+      "url": "http://localhost:8642/mcp"
+    }
+  }
+}

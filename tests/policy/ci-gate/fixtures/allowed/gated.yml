@@ -1,0 +1,17 @@
+name: gated
+on: push
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: mise run check
+  deploy:
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - run: echo deploy
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    steps:
+      - run: echo notify

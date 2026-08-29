@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__ramune__ramune_read_graph|mcp__ramune__ramune_claim_ready|mcp__ramune__ramune_record_result|mcp__ramune__ramune_submit_candidate|mcp__ramune__ramune_claim_integration|mcp__ramune__ramune_advance_integration|mcp__ramune__ramune_record_integration_outcome|mcp__ramune__ramune_request_replan|mcp__ramune__ramune_abandon_assignment|mcp__ramune__ramune_resume|mcp__ramune__ramune_apply_ops|mcp__ramune__ramune_start|mcp__ramune__ramune_end|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mise",
+            "args": [
+              "-C",
+              "${CLAUDE_PROJECT_DIR}",
+              "exec",
+              "--",
+              "node",
+              "${CLAUDE_PROJECT_DIR}/tools/ramune/hooks/src/adapters/claude/cli.ts"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

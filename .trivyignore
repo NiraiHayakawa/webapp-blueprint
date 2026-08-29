@@ -1,0 +1,33 @@
+# Trivy の抑制ファイル(原則4「抑制には理由を書く」。
+# docs/principles/enforce-with-machines.md)。ここに載せてよいのは
+# 個別の CVE ID を理由つきで抑制する場合だけで、severity のしきい値
+# (trivy.yaml の HIGH,CRITICAL)を緩めることはしない。
+#
+# 対象は全て blume(ローカル専用の docs ビューア。デプロイせず CI にも
+# 組み込まない。design doc §6「blume」参照)が引き込む深い transitive
+# dependency で、いずれもアプリケーションコード(apps/*)・本番実行パスには
+# 一切現れない。`pnpm why <package>` で確認した経路(2026-08-08):
+#
+#   path-to-regexp@6.1.0 (CVE-2024-45296)
+#     blume -> @astrojs/vercel -> @vercel/routing-utils -> path-to-regexp
+#
+#   undici@5.29.0 (CVE-2026-12151 / CVE-2026-1526 / CVE-2026-2229)
+#     blume -> ai -> @ai-sdk/gateway -> @ai-sdk/provider-utils -> undici
+#
+# 修正するには pnpm の `overrides` で blume 配下の transitive dependency を
+# 個別に上書きするか、blume(または @astrojs/vercel / ai SDK)が上流で
+# これらを更新するのを待つ必要がある。前者は blume が実際に使っている
+# astro/vercel adapter・AI SDK の内部動作確認コストが高く(blume 自体は
+# exact pin。design doc §6 の表参照)、後者はこちらで制御できないため、
+# 現時点では受容し、CVE 単位で理由つきに抑制する(ルールごと off にする
+# 抑制よりも影響範囲を狭く保つ)。
+#
+# 再確認の契機: blume を更新する PR(pnpm-lock.yaml が変わる)では、この
+# ファイルの各行が pnpm-lock.yaml 更新後も trivy で再検出されるか
+# (`mise run check:vulnerabilities` を実行して確認する)を必ず見る。
+# 再検出されなければ該当行を削除する。
+
+CVE-2024-45296
+CVE-2026-12151
+CVE-2026-1526
+CVE-2026-2229

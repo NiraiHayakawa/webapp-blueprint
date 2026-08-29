@@ -1,0 +1,29 @@
+{
+  "name": "@webapp-blueprint/ramune-hooks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Multi-client PreToolUse hook enforcing ramune task graph permissions across Claude Code, Antigravity, and Codex CLI",
+  "bin": {
+    "ramune-antigravity-hook": "./src/adapters/antigravity/cli.ts",
+    "ramune-claude-hook": "./src/adapters/claude/cli.ts",
+    "ramune-codex-hook": "./src/adapters/codex/cli.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./claude": "./src/adapters/claude/index.ts",
+    "./antigravity": "./src/adapters/antigravity/index.ts",
+    "./codex": "./src/adapters/codex/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@webapp-blueprint/ramune-mcp-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "設計正本 §8 の 13 ツール契約を実装する MCP サーバー（transport 非依存。HTTP 配線は WP5）",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "status": "node src/status.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "@webapp-blueprint/ramune-graph": "workspace:*",
+    "ajv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "catalog:",
+    "@types/node": "catalog:",
+    "@webapp-blueprint/ramune-git": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

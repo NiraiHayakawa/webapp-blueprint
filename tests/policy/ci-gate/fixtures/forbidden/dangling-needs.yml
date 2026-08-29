@@ -1,0 +1,14 @@
+name: dangling-needs
+on: push
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gate
+  deploy:
+    runs-on: ubuntu-latest
+    # 存在しないジョブ ID を指している(意図的に破った状態)。
+    # ルートは gate の 1 個だけだが、deploy の依存チェーンはそこに辿り着けない。
+    needs: nonexistent-job
+    steps:
+      - run: echo deploy

@@ -1,0 +1,23 @@
+{
+  "name": "@webapp-blueprint/ramune-git",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ramune 並列実行の Git 機構（設計正本 §6 / §7）。隔離 worktree の割当と回収、統合用 worktree での merge と 1 コマンド検証の証跡生成、canonical publish の CAS（§6.4）、失敗経路の cleanup、GitObservation の採取を行う。グラフ状態（.ramune/graph.json）には触れず、MCP ツールへの配線は mcp-server パッケージが行う",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test-support": "./test-support.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@webapp-blueprint/ramune-graph": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  // test/fixtures/ は ts-morph checker への入力（許可/禁止ペア）であり、
+  // 実際に import 可能なモジュールを持たない偽の specifier
+  // （"@fixtures/transport-sdk" 等）を意図的に含む。tsc の型検査対象からは
+  // 除外する（checker 自身の "check" タスクが fixture を解析する主体）。
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "test"],
+  "exclude": ["test/fixtures"]
+}

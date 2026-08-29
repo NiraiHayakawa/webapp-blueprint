@@ -1,0 +1,12 @@
+name: bypassed-job
+on: push
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: mise run check
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # needs が無いため gate を経ずに走れる（意図的に破った状態）
+      - run: echo deploy

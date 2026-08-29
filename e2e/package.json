@@ -1,0 +1,22 @@
+{
+  "name": "@webapp-blueprint/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "最小の縦切り（E2E）。playwright-bdd でビルド済みフロント（apps/web/dist）だけを対象にし、バックエンドには繋がない（docs/plan/Template/20260807_template-design.md §9）",
+  "type": "module",
+  "exports": {
+    ".": "./playwright.config.ts"
+  },
+  "scripts": {
+    "test": "pnpm --filter @webapp-blueprint/web run build && bddgen && playwright test",
+    "check:unused-steps": "node ./check-unused-steps.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "playwright": "catalog:",
+    "playwright-bdd": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,38 @@
+# 正本: docs/plan/Template/20260807_template-design.md §2 原則10「依存 pin」/
+# その要件詳細(公開7日未満のバージョンを自動採用しない)。
+#
+# セキュリティ更新は cooldown を迂回する(GitHub の既定動作。設定不要)。
+#
+# 適用範囲の注意(このファイルの対象範囲。spec が明示していないため報告に記載):
+# - npm(pnpm workspace + pnpm-workspace.yaml の catalog)と github-actions
+#   (このディレクトリでSHA pinしているActions)の2エコシステムのみを対象にする。
+# - mise.toml [tools] で pin しているツール(node / pnpm / actionlint / pkl /
+#   github:mizchi/pkfire / github:mizchi/similarity)は Dependabot の対象外
+#   (Dependabot に mise 用のエコシステムが無いため)。そちらは mise.toml 側の
+#   `minimum_release_age = "7d"` で同じ7日待機を機械強制している
+#   (mise.toml は別エージェントの担当のため、本ファイルでは重複させない)。
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "⬆️"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "⬆️"

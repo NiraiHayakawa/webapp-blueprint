@@ -1,0 +1,9 @@
+name: review
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    env:
+      SUMMARY_MARKER: "<!-- review-summary -->"
+    steps:
+      - run: echo post-review

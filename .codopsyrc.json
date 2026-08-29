@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "unused-import": false,
+    "no-console": false
+  },
+  "skipDirs": ["/tools/architecture/test/fixtures/", "/tools/oxlint/anti-slop/"],
+  "skipFiles": ["pnpm-lock.yaml"]
+}

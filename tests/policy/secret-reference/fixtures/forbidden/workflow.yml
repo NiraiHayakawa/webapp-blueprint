@@ -1,0 +1,11 @@
+name: forbidden
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # 式でも短い設定値でもない平文（意図的に破った状態）。secretlint の
+      # 実測パターンに引っかからないよう、既知のプロバイダ形式は模倣していない。
+      SAMPLE_TOKEN: this-is-a-plaintext-value-that-should-be-a-secret-reference-instead
+    steps:
+      - run: echo build

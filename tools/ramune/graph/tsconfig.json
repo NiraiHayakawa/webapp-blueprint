@@ -1,0 +1,11 @@
+{
+  // TypeScript 7.0.2（tsgo）は node_modules/@types 配下を自動で取り込まない
+  // （tools/architecture/tsconfig.json / e2e/tsconfig.json と同じ理由。2026-08-08 に
+  // node:url を使うテストファイルで実測: types を明示しないと node: 組み込みモジュール
+  // 指定子と `import.meta.url` / URL の型解決が失敗する）。
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

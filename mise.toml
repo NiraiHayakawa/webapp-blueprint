@@ -1,0 +1,539 @@
+min_version = "2026.8.2"
+
+# mise.toml がタスクの唯一の正本（§5「タスクとゲート」）。
+# `mise run check` が全ゲートの入口であり、CI はここに列挙されたタスク名を
+# そのまま matrix に渡す（検査ロジックを CI 側に書かない）。
+#
+# 依存の完全 pin と 7 日待機（原則10）は、この [tools] レイヤーについては
+# `minimum_release_age` で機械強制する。`mise upgrade` が待機期間未満の
+# バージョンを候補にしないため、待機を外す判断は常に手動・明示になる。
+[settings]
+minimum_release_age = "7d"
+
+[env]
+# turbo の匿名テレメトリを止める（Vercel Inc. への anonymous usage data
+# 送信。https://turborepo.com/docs/telemetry）。リモートキャッシュを使わない
+# という「個人利用のみ・意図しない外部通信を作らない」境界（§5「Turborepoを
+# 採用する理由」）と同じ理由で、turbo.jsonc では宣言できない設定のためここで
+# 環境変数として固定する。
+TURBO_TELEMETRY_DISABLED = "1"
+
+[tools]
+node = "24.18.1"
+pnpm = "11.19.0"
+# workflow lint（§5 選定ツール）
+actionlint = "1.7.12"
+# Taskfile.pkl（pkfire）の実行に必要な2本。tag が "pkfire@x.y.z" 形式のため
+# ubi バックエンドではタグ解決に失敗する（実測済み）。github バックエンドは
+# 同じ tag でも解決できたため、そちらを使う。
+"github:mizchi/pkfire" = { version = "0.14.0", exe = "pkf" }
+pkl = "0.32.1"
+# 重複検出（§5「検出系ツールの運用方針」）。npm に存在しない Rust バイナリ。
+"github:mizchi/similarity" = { version = "0.5.0", exe = "similarity-ts" }
+# Terraform 静的解析（infra/。.tflint.hcl 参照）。npm に存在しない Go バイナリ
+# のため、turbo と違い pnpm-workspace.yaml の catalog ではなくここで pin する。
+tflint = "0.64.0"
+# AST レベルの複雑度・品質ゲート(docs/recipes/tools/quality-gates.md)。
+# oxlint の複雑度・肥大系ルール(max-lines/max-depth/max-params/
+# max-lines-per-function/max-statements/max-classes-per-file)は
+# TypeScript 専用かつ行数・文の数しか見ず、認知的複雑度(ネストの深さで
+# 重み付けした読みにくさ)を測れない。codopsy は tree-sitter で 35 言語を
+# 解析し、循環的複雑度と認知的複雑度の両方を言語横断で機械強制できる
+# (原則7の受け皿の穴を埋める)。
+#
+# バージョンは 2.2.0（2026-08-08 公開。当日のため原則10の7日待機を満たさない）
+# ではなく、直近で7日待機を満たす 2.0.1（2026-05-11 公開）を pin する。必要な
+# CLI フラグ（--diff/--hotspots/--save-baseline/--no-degradation/
+# --fail-on-warning/--fail-on-error）と config スキーマ（skipDirs/skipFiles/
+# rules の severity+max 形式）は 2.0.1 の時点で既に揃っていることをソース
+# （src/main.rs, src/config.rs）で確認済み。
+#
+# npm registry にも mise の central registry にも存在しない Rust 製の単一
+# バイナリのため、similarity-ts / pkfire と同じ github バックエンドで pin
+# する（ubi バックエンドは deprecated 警告が出るため使わない。2026-08-08 実測）。
+"github:O6lvl4/codopsy" = "2.0.1"
+# 依存(SCA)・Terraform設定ミスの脆弱性スキャン(docs/recipes/tools/ci.md
+# 「4. 脆弱性 / SAST」)。原則10「依存 pin」のうち、pin+cooldownが守れない
+# 逆方向(pinした後に脆弱と判明したもの)をここで埋める。trivy.yaml /
+# .trivyignore / [tasks."check:vulnerabilities"] 参照。
+#
+# バージョンは 0.73.0（2026-08-03公開。採用日2026-08-08時点で7日待機を
+# 満たさない）ではなく、直近で7日待機を満たす 0.72.0（2026-06-30公開）を
+# pin する。mise の central registry に aqua バックエンドで登録済み
+# （`mise registry | grep trivy` で確認。2026-08-08）。
+trivy = "0.72.0"
+# CodeQL CLI 本体（[tasks."check:codeql"]。ローカル実行用）。
+# データベース作成と security-extended 解析の実行負荷が大きいため日常の
+# `check` ゲートからは分離し、ローカル CLI タスクとして提供する。
+# GitHub ホストの Code Scanning workflow との役割分担は
+# docs/recipes/tools/ci.md「4. 脆弱性 / SAST」参照。
+#
+# mise の central registry に `github:github/codeql-cli-binaries` バックエンド
+# で登録済み（`mise registry | grep codeql` で確認。2026-08-09）。exe パスの
+# 指定は不要で、そのまま `codeql = "<version>"` で解決できる。
+#
+# バージョンは 2.26.2（2026-07-29 公開。2026-08-09 時点で7日待機を満たす。
+# GitHub Releases で確認した限りこれが最新版）を pin する。
+codeql = "2.26.2"
+
+# ---------------------------------------------------------------------------
+# 依存インストール（ADR 0004「ハーネスの起動経路は自分の前提を自分で満たす」）
+# ---------------------------------------------------------------------------
+
+[tasks.install]
+description = """
+node_modules を lockfile どおりに揃える。ハーネス（MCP サーバ）の起動 task が
+depends でこれを呼ぶため、依存が無い worktree でも起動経路が自力で成立する
+（tests/policy/harness-bootstrap/ が「MCP を起動する task は install に
+depends する」を機械強制している）。
+
+`--frozen-lockfile` を付けるのは fail-fast のため。lockfile と manifest が
+食い違っている状態を install が黙って解消してしまうと、原則10（依存の完全固定）が
+起動経路の副作用で崩れる。食い違いはここで明確に失敗させる。
+
+出力を stderr に落としている理由（1>&2）: この task は stdio で JSON-RPC を
+流す MCP サーバ起動 task（mcp:ramune:serve）の depends に置かれる。pnpm install は
+進捗（"Scope: ..." / "Done in ..."）を stdout に書くため（2026-08-10 実測）、
+そのまま流すと MCP のハンドシェイクを壊す。診断情報は stderr に出す。
+"""
+run = "pnpm install --frozen-lockfile 1>&2"
+
+# ---------------------------------------------------------------------------
+# 全ゲートの入口
+# ---------------------------------------------------------------------------
+
+[tasks.check]
+description = "全ゲートの入口。他は依存グラフで束ねるのみで、ここには実処理を書かない（原則8）"
+depends = [
+  "lint",
+  "fmt",
+  "typecheck",
+  "test",
+  "knip",
+  "similarity",
+  "check:complexity",
+  "check:secrets",
+  "check:architecture",
+  "test:policy",
+  "check:agents",
+  "check:terraform",
+  "check:workflows",
+]
+
+# docs:check は check の依存から意図的に外す（2026-08-08 に実測して判断）。
+# blume の型検査は各パッケージの `typecheck` task とは別の経路で、ルート
+# tsconfig.json を使い「monorepo 全体を 1 つの TypeScript プログラム」として
+# 走査する（tsconfig.json 自身のコメント参照）。この走査方式は各パッケージが
+# 個別に選んでいる tsconfig 設定（apps/web の DOM lib 追加・e2e の
+# esModuleInterop 周りの解決等）を無視するため、各パッケージの `typecheck`
+# task が実際にはクリーンでも、blume の走査だけが誤検知で落ちる
+# （e2e/playwright.config.ts の `@playwright/test` named import が
+# "no exported member" になる等。e2e 単体の `tsc --noEmit` は通る）。
+# これは blume 側のプログラム構成の限界であり、ソースコードの欠陥ではない。
+# design doc §6「blume」が明言するとおり blume は元々ローカル専用・CI 非組込み
+# の方針のため、`check`（CI が呼ぶ唯一のゲート）から外すのは spec の方針とも
+# 整合する。`mise run docs:check` 自体は独立タスクとして残し、ローカルで
+# 手動実行できる（既知の誤検知が出る前提で使う）。
+
+# test:e2e は意図的に check の依存から外す（§4 末尾: E2E は main マージ時のみ）。
+# check:source-sync も同じ理由で check の依存から外す。詳細は [tasks."check:source-sync"] 参照。
+
+# check:vulnerabilities（Trivy）も check の依存から意図的に外す。理由は
+# ネットワーク要件であり、docs:check・test:e2e とは異なる（黙って無視するの
+# ではなく明示する。指示どおり）: 脆弱性DB（約100MB。mirror.gcr.io 経由）を
+# 初回・日次更新のたびにダウンロードする必要があり、オフライン環境では
+# fail-fast で落ちる（2026-08-08 実測: ネットワーク遮断状態で
+# `trivy fs --skip-db-update` を付けない限り必ず失敗する）。
+# `mise run check` はローカルでオフラインでも完走できることを維持したいため、
+# ここに含めない。CI では .github/workflows/ci.yml の check-vulnerabilities
+# job（dependency-gate 経由で ci-required の判定対象）からのみ呼ぶ。
+# ローカルでネットワークがある状態なら `mise run check:vulnerabilities` を
+# 手動実行できる。
+
+# check:codeql（CodeQL CLI）も check の依存から意図的に外す。
+# データベース作成 + security-extended クエリセットの解析は入力
+# コードが増えるほど数分〜数十分かかり得るため（docs:check を check から
+# 外したのと同じ「重すぎて毎回回せない」判断に倣う）。
+# 必要なときに独立タスクとして手動実行する。
+
+# ---------------------------------------------------------------------------
+# workflow lint（actionlint はここに追加した理由の注記あり。下記）
+#
+# 教訓: `[tools]` に pin されているだけで呼ぶ task が無いツールは、無いのと
+# 同じ（原則4「機械強制」/ 原則8「検証は1コマンド」の穴）。actionlint は
+# 当初 [tools] に pin 済みだったが呼ぶ task が無く、workflow lint が一度も
+# 走っていなかった。check:workflows task を追加してこの穴を塞いだ
+# （2026-08-09）。docs/recipes/tools/ci.md「1. workflow lint」にも同じ注記
+# がある。
+# ---------------------------------------------------------------------------
+
+[tasks."check:workflows"]
+description = """
+actionlint による .github/workflows/*.yml の構文・型検査（§5「選定ツール」）。
+引数無しで実行すると最も近い `.github/workflows` を自動検出する。
+高速なため `check` に含める。
+"""
+run = "actionlint"
+
+[tasks."check:codeql"]
+description = """
+CodeQL CLI によるローカル脆弱性・SAST 検査（§5「選定ツール」）。
+
+データベース作成と解析の負荷が大きいため `check` の依存には含めず、
+必要なときに手動で実行する。
+
+データベースと結果(SARIF)はリポジトリ外の一時ディレクトリに作る
+（リポジトリを汚さない。他の生成物と違い .gitignore への追加が不要）。
+クエリパック(codeql/javascript-queries)は初回実行時に ~/.codeql/packages
+へダウンロードされる(ネットワークが要る)。
+"""
+run = """
+set -eu
+work="$(mktemp -d)"
+codeql database create "$work/db" --language=javascript-typescript --source-root=. --overwrite
+codeql database analyze "$work/db" codeql/javascript-queries:codeql-suites/javascript-security-extended.qls --format=sarif-latest --output="$work/results.sarif"
+echo "SARIF: $work/results.sarif"
+"""
+
+# ---------------------------------------------------------------------------
+# lint / format / 型 / テスト
+# ---------------------------------------------------------------------------
+
+[tasks.lint]
+description = "oxlint + oxlint-tsgolint によるリポジトリ全体の静的診断（型情報付き）"
+run = "pnpm exec oxlint --type-aware ."
+
+[tasks.fmt]
+description = "oxfmt のフォーマット検査（非破壊。書き込みは各自 `pnpm exec oxfmt .` で行う）"
+run = "pnpm exec oxfmt --check ."
+
+# typecheck / test は turbo 経由でパッケージへ委譲する（§5「Turborepoを
+# 採用する理由」参照）。turbo はここでの下位レイヤであり、mise が唯一の
+# タスク正本であることは変わらない — turbo.jsonc の inputs/outputs 宣言と
+# 合わせて、パッケージ単位の入力追跡キャッシュだけを turbo に持たせる。
+# パッケージ間の実行順序は元々 pnpm -r の依存グラフ解決でカバー済みだった
+# ため、turbo 側にも順序目的の dependsOn は足さず、キャッシュ目的の
+# 宣言だけを turbo.jsonc に置く。
+
+[tasks.typecheck]
+description = "各ワークスペースパッケージの型検査に turbo 経由で委譲する（ルートに検査対象コードは無い）"
+run = "pnpm exec turbo run typecheck"
+
+[tasks.test]
+description = """
+各ワークスペースパッケージの単体・振る舞いテストに turbo 経由で委譲する。
+実行系はパッケージごとの "test" script に従う（apps/ と contract/ は vitest、
+tools/architecture は `node --test`）。
+
+architecture checker 自身の fixture テスト（許可ペア / 禁止ペアの双方。
+受入条件2）もここに含まれる — tools/architecture は pnpm workspace の
+パッケージであり "test" script を持つため、`turbo run test` のスコープに
+最初から入っている（`Packages in scope: ..., @webapp-blueprint/
+architecture-checker, ...`）。かつて同じものを直接呼ぶ
+`[tasks."test:architecture"]` が別に存在し check の依存にも CI の matrix にも
+並んでいたが、原則8（二重管理にしない）に反するうえ、`mise run check` の
+1 回の実行で同じ `node --test` が 2 プロセス同時に走って並列度を無駄に
+消費していたため削除した（2026-08-09）。
+
+`--filter='!@webapp-blueprint/e2e'` で e2e/ を明示的に除外する。整合性検証
+（2026-08-08）で発見した事実: e2e/package.json の script 名も他パッケージと
+同じ "test" のため、フィルタ無しでは e2e の Playwright フルスイート
+（`pnpm --filter ./e2e run test`。[tasks."test:e2e"] と同じコマンド）まで
+一緒に実行してしまい、「E2E は check に含めず main マージ時のみ実行する」
+（§4 末尾 / §9 末尾）という設計意図を壊して `mise run check` を巻き込んで
+落としていた（Playwright の webServer 起動待ちで 60 秒 timeout）。
+"""
+run = "pnpm exec turbo run test --filter='!@webapp-blueprint/e2e'"
+
+[tasks."test:e2e"]
+description = "playwright-bdd による E2E。check には含めない（main マージ時のみ実行）"
+run = "pnpm --filter ./e2e run test"
+
+[tasks."test:e2e:unused-steps"]
+description = """
+未使用 step 検出ゲート（§4「機械強制」表、受入条件13）。check には含めない
+（test:e2e と同じ理由。E2E workflow からのみ呼ぶ）。
+
+`bddgen export --unused-steps` は未使用 step を一覧表示できるが、検出件数に
+関わらず exit code は常に 0 を返す（2026-08-08、playwright-bdd 9.2.0 で実測）。
+e2e/check-unused-steps.mjs がその出力を解析し、1 件以上検出されたら非ゼロで
+終了させる。
+"""
+run = "pnpm --filter ./e2e run check:unused-steps"
+
+# ---------------------------------------------------------------------------
+# 検出系（§5「検出系ツールの運用方針」）
+# ---------------------------------------------------------------------------
+
+[tasks.knip]
+description = """
+未使用 export・未使用依存の検出。除外は knip.jsonc に理由コメントつきで書く（原則4）。
+
+`--strict` は使わない。2026-08-08 に実行して確認した事実（knip.jsonc の
+コメントに詳細）: `--strict` は `--production` を含意し、production mode では
+"dependencies"(このリポジトリは全ワークスペースが devDependencies のみで
+"dependencies" を持たない)しか依存検査の対象にならず、かつテストファイル経由の
+到達性が usage 判定から外れる。結果として (a) devDependencies の未使用が
+一切検出できなくなり(§5「knip（未使用検出）」の目的そのものが空振りする)、
+(b) 実際には package.json に正しく記載済みの devDependency
+(ts-morph・@playwright/test・playwright-bdd 等)が "unlisted" と誤検出され、
+テストファイルからのみ使われる export(TaskTitleEmptyError 等)が
+"unused" と誤検出される。`--strict` 無しの既定モードはこの両方を解消し、
+かつ devDependencies も検査対象に含める(このリポジトリの実依存は
+devDependencies のみのため、`--strict` よりこちらが検査として機能する)。
+"""
+run = "pnpm exec knip"
+
+[tasks.similarity]
+description = """
+AST 類似度による重複検出。閾値・最小行数は similarity-ts の既定値
+（threshold=0.87, min-lines=3）を使用している。この既定値を採用してよいかの
+レシピが docs/recipes/ にまだ無いため、値の妥当性は未検証（報告に明記）。
+"""
+run = "similarity-ts . --fail-on-duplicates"
+
+[tasks."check:complexity"]
+description = """
+codopsy による言語横断の複雑度・構造ゲート(docs/recipes/tools/quality-gates.md)。
+oxlint の複雑度・肥大系ルールが担わない認知的複雑度をここで機械強制する。
+
+`.codopsyrc.json` で unused-import と no-console をルールごと off にしている:
+- unused-import: `import type { X } from "..."` のように型位置でしか使われない
+  名前を、tree-sitter の `type_identifier` ノードを見ずに `identifier` ノード
+  だけで使用判定しているため常に誤検出する(2026-08-08、codopsy 2.0.1 の
+  ソース `src/analyzer/rules/unused.rs` の `walk_js_usage` で確認した既知の
+  制約)。この懸念は型情報を持つ `oxlint --type-aware`(`eslint/no-unused-vars`)
+  が既に正しく検査しており(2026-08-08 実測: 誤検出 0 件)、二重管理にしない
+  (原則8)。
+- no-console: 検出はすべて scripts/・e2e/・tools/architecture/ の CLI
+  ツーリングコードで、oxlint.config.ts のディレクトリ別 override が既に
+  意図的に許可している対象と一致する(2026-08-08 実測)。codopsy の config は
+  ディレクトリ単位の override を持たないため、ここで off にして oxlint 側の
+  判定に一本化する。apps/web・apps/api の console 検出は oxlint
+  (`eslint/no-console: error`)が引き続き担う。
+
+`skipDirs` は tools/architecture/test/fixtures/**(意図的に規約違反を含む
+checker 自身の fixture)だけを除外する。`skipFiles` は pnpm-lock.yaml
+(生成されたロックファイル。codopsy の既定 skip リストが想定する
+package-lock.json / Cargo.lock 相当だが pnpm 用が無いため個別に追加)。
+アプリケーションコードは除外しない(原則4)。
+
+閾値(max-complexity=10 / max-cognitive-complexity=15 / max-lines=300 /
+max-depth=4 / max-params=4)は codopsy の既定のまま変更していない。
+"""
+run = "codopsy analyze . --fail-on-warning --fail-on-error"
+
+# ---------------------------------------------------------------------------
+# secrets / architecture / policy / infra
+# ---------------------------------------------------------------------------
+
+[tasks."check:secrets"]
+description = "secretlint によるリポジトリ全体の secret スキャン"
+run = "pnpm exec secretlint --secretlintignore .gitignore \"**/*\""
+
+[tasks."check:vulnerabilities"]
+description = """
+Trivy による依存(SCA)と Terraform 設定ミスの脆弱性スキャン
+(docs/recipes/tools/ci.md「4. 脆弱性 / SAST」)。check の依存には含めない
+(理由は上の「check:vulnerabilities（Trivy）も check の依存から意図的に外す」
+コメント参照)。scan 対象・除外ディレクトリ・severity しきい値(HIGH,CRITICAL)
+は trivy.yaml に集約している。
+
+`--include-dev-deps` は CLI フラグとして明示する(trivy.yaml のコメント
+参照。config file 経由では反映されないことを実測した)。このリポジトリは
+全ワークスペースが devDependencies のみ(knip.jsonc と同じ事情)のため、
+このフラグが無いと全パッケージが除外され「対象ゼロで緑」になる
+(2026-08-08 実測: フラグ無しだと pnpm-lock.yaml が
+"Supported files for scanner(s) not found" として弾かれ、フラグありだと
+pnpm-lock.yaml が実際にスキャンされる)。
+
+既知の抑制は .trivyignore に理由つきで書く(原則4)。severity のしきい値を
+緩めて緑にすることはしない。
+"""
+run = "trivy fs --include-dev-deps --exit-code 1 ."
+
+[tasks."check:terraform"]
+description = """
+tflint による infra/ の静的解析。provider プラグインは入れず、組み込みの
+"terraform" ルールセット（recommended preset）のみを適用する
+（provider 未選定のため。.tflint.hcl 参照）。
+
+`--chdir=infra` で infra/ 配下を対象にする。config は `--chdir` 適用後の
+ディレクトリ基準で解決される（tflint の仕様）ため、リポジトリルートに置いた
+.tflint.hcl を明示的に `--config` で渡す。
+"""
+run = "tflint --chdir=infra --config=$(pwd)/.tflint.hcl"
+
+[tasks."check:architecture"]
+description = """
+ts-morph architecture checker をリポジトリ全体に適用する。
+tools/architecture パッケージが "check" スクリプトを持つことを前提にしている
+（実装エージェント間の命名合意。未確定なら報告に明記）。
+"""
+run = "pnpm --filter ./tools/architecture run check"
+
+[tasks."test:policy"]
+description = """
+policy-as-test（tests/policy/）。tests/policy は pnpm workspace のパッケージ
+ではないため（pnpm-workspace.yaml 参照）、package.json 経由ではなくルートの
+vitest で直接実行する。
+"""
+run = "pnpm exec vitest run tests/policy"
+
+[tasks."check:source-sync"]
+description = """
+原則11②「同期」: 同一 PR 内で参照先が変わったのに正本（AGENTS.md 階層）が
+触られていない場合に落とす。checkSyncOnDiff
+（tests/policy/source-freshness/source-freshness.check.ts）に実際の
+git diff（base…HEAD）を渡す配線（監査 2026-08-08 で発見: ロジックは
+source-freshness.test.ts の手作り fixture からしか呼ばれておらず、実際の
+PR では発火しなかった。この task と scripts/check-source-sync.mjs で配線した）。
+
+環境変数 SOURCE_SYNC_BASE_SHA（pull_request イベントの base.sha）が必須。
+未設定なら即座に失敗する（fail-fast。黙って緑を返す経路は作らない）。
+base の意味が「同一 PR 内」に対応しないローカル実行・push イベントでは
+使えないため、test:e2e と同じ理由で [tasks.check].depends には含めない
+（呼び出し元は .github/workflows/ci.yml の source-sync job のみ）。
+"""
+run = "node scripts/check-source-sync.mjs"
+
+# ---------------------------------------------------------------------------
+# agent 資産の同期（原則11 / §7「skill」）
+# ---------------------------------------------------------------------------
+
+[tasks."sync:agents"]
+description = ".claude/skills/ を正本として .agents/skills/ に書き込む（生成。CI では実行しない）"
+run = "node scripts/sync-agent-assets.mjs"
+
+[tasks."check:agents"]
+description = "sync:agents の drift 検査。差分があれば非ゼロ終了する（CI ゲート、書き込みなし）"
+run = "node scripts/sync-agent-assets.mjs check"
+
+# ---------------------------------------------------------------------------
+# git hook から呼ばれる下請けタスク（Taskfile.pkl 参照）
+# ---------------------------------------------------------------------------
+
+[tasks."check:whitespace"]
+description = "pre-commit 専用。ステージ済み diff の空白エラー検査（check の依存には含めない）"
+run = "git diff --cached --check"
+
+# ---------------------------------------------------------------------------
+# ramune 自身の実行（MCP サーバー / viewer。docs/adr/0001-ramune-architecture.md）
+# ---------------------------------------------------------------------------
+
+[tasks."mcp:ramune:serve"]
+description = """
+ramune の MCP サーバー（tools/ramune/mcp-server）を Streamable HTTP（stateless）で
+起動する。ADR 0013「単一共有 HTTP サーバ」。.mcp.json の "ramune" エントリは
+type: "http" でこのサーバーに接続し、複数セッション・複数 worktree が同一の
+writer を共有する。stdio 起動（旧 mcp:ramune task）は廃止した。
+
+port はここで固定する（8642）。main.ts は --port を必須引数としており、
+既定値へのフォールバックは存在しない（fail-fast）。既に別のサーバーが同じ
+ポートで listen している場合、2 個目の起動は PortBindFailedError で即死する
+（port bind を二重起動の排他ロックとして使う）。graph 配置パスの所有検査も
+起動時に行われる。
+
+`node .../main.ts` をリポジトリルートから直接起動する理由は旧 mcp:ramune task と
+同じ（GraphStore / 所有検査が process.cwd() 基準で canonical ルートを決めるため。
+pnpm --filter 経由は cwd を変えるため使わない）。
+
+depends に install を置く理由（ADR 0004）: サーバー不在のセッションでは lathe
+ツールが現れず接続失敗が明確なエラーになるべきであり、serve の起動経路が自分の
+前提を自分で満たすことで silent な失敗を消す。サーバー不在時の自動 spawn
+フォールバックは存在しない。
+"""
+depends = ["install"]
+run = "node tools/ramune/mcp-server/src/main.ts --port 8642"
+
+[tasks."ramune:status"]
+description = """
+ramune モードの稼働状況（.ramune/graph.json の有無・稼働/非稼働・goal・ノード数）を
+表示する読み取り専用コマンド（ADR 0003「ramune モードの状態機構」）。書き込みは
+一切行わない。mcp:ramune:serve task と同じ理由でリポジトリルートから直接 node を呼ぶ
+（process.cwd() 基準で .ramune/graph.json を解決するため）。
+"""
+depends = ["install"]
+run = "node tools/ramune/mcp-server/src/status.ts"
+
+[tasks."viewer:dev"]
+description = """
+tools/ramune/viewer の開発サーバーを起動する（.ramune/graph.json を読み取り
+専用で表示。書き込みは一切行わない）。`/graph.json` はリポジトリ直下の
+.ramune/graph.json を tools/ramune/viewer/vite.config.ts のミドルウェア
+（configureServer）が都度中継して返す。.ramune/graph.json がまだ無い場合は
+404 になり、viewer 側は「グラフがまだありません」という状態を表示する。
+
+`pnpm --filter` で tools/ramune/viewer を cwd にして起動する。mcp:ramune:serve task
+と違い process.cwd() 基準の読み書きを行わないため（vite.config.ts の
+ミドルウェアは import.meta.dirname 基準でリポジトリ直下を解決する）、cwd を
+変えても問題ない。
+"""
+depends = ["install"]
+run = "pnpm --filter @webapp-blueprint/ramune-viewer run dev"
+
+# ---------------------------------------------------------------------------
+# docs（blume。§6 / §7）
+# ---------------------------------------------------------------------------
+
+[tasks."docs:dev"]
+description = "blume の開発サーバを起動する（ローカル専用。デプロイしない）"
+run = "pnpm exec blume dev"
+
+[tasks."docs:check"]
+description = "blume の型検査（astro check）とリンク検査を行う"
+run = "pnpm exec blume check && pnpm exec blume validate"
+
+[tasks."docs:mcp"]
+description = """
+blume MCP サーバ（/mcp）をローカルで起動する。
+注意（2026-08-08 時点の blume 1.2.1 で確認・報告に明記した既知の齟齬）:
+blume の MCP は Streamable-HTTP エンドポイントであり、ai.mcp.enabled=true と
+deployment.output="server" を blume.config.ts 側で設定していない限り
+fail-fast で起動に失敗する。§6 が想定する「.mcp.json から stdio でこの
+task を呼ぶ」形は blume の実際の実装と一致しない。.mcp.json 側は
+http transport で http://localhost:<port>/mcp を指す必要がある。
+"""
+depends = ["install"]
+run = "pnpm exec blume dev"
+
+# ---------------------------------------------------------------------------
+# トレース（ローカル開発。docs/recipes/tools/observability.md 参照）
+# ---------------------------------------------------------------------------
+
+[tasks."trace:local"]
+description = """
+ローカルでトレースを目視するための Jaeger all-in-one を起動する
+（docs/recipes/tools/observability.md「4. ローカル開発」）。
+
+`check` の依存には含めない（`docs:dev` と同じ扱い）。理由: これは開発時に
+手で回してトレースの見え方を確認するためのものであり、CI ゲートではない。
+毎回 Docker コンテナを起動させてまで `check` の完走に含める理由が無い
+（`check` はオフラインでも完走できることを維持する方針。既存の
+[tasks."check:vulnerabilities"] のコメントと同じ判断軸）。
+
+イメージは sha256 ダイジェストで固定する（原則10「依存は完全固定する」の
+コンテナイメージへの適用。`latest` やバージョンタグは指す内容が後から
+変わり得るため、タグではなくダイジェストを使う）。
+`jaegertracing/all-in-one:1.76.0`（Docker Hub 上で 2025-12-03 公開）の
+ダイジェストを、`registry-1.docker.io` に対する `docker-content-digest`
+レスポンスヘッダで直接確認した（2026-08-09）。
+
+起動後、UI は http://localhost:16686 で見える。OTLP は Jaeger 1.35 以降
+既定で有効（追加の環境変数は不要。gRPC は 4317、HTTP は 4318 で受ける）。
+
+exporter の差し替え（既定の ConsoleSpanExporter → OTLP）はこの task の
+範囲外。このタスクは「見る場所」を用意するだけでコードは書き換えない —
+差し替えは合成ルート（apps/api/src/composition.ts の spanProcessors）で
+利用者が行う。差し替え方は docs/recipes/tools/observability.md 参照。
+
+フォアグラウンド実行。停止は Ctrl+C（`--rm` 付きのためコンテナは自動的に
+削除される）。
+
+実行確認(2026-08-09): 上記コマンドを実際に起動し、`http://localhost:16686/`
+が HTTP 200 を返すこと、コンテナのログに
+`Starting GRPC server ... port:16685`・OTLP gRPC(4317)/HTTP(4318) の受信
+サーバが起動していることを確認した。確認後はコンテナを停止・削除し、
+pull したイメージも削除済み(後始末)。
+"""
+run = "docker run --rm --name webapp-blueprint-jaeger -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac"

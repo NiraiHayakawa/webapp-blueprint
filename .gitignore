@@ -1,0 +1,52 @@
+# 依存関係（pnpm-lock.yaml は生成物ではないためコミットする）
+node_modules/
+
+# ビルド生成物
+dist/
+build/
+*.tsbuildinfo
+
+# blume のローカル作業ディレクトリ。ローカル専用でデプロイしないため
+# コミットしない（§6「blume」）
+.blume/
+
+# secrets（原則9: repo には op:// 参照のみを置く。実値は絶対に置かない）
+.env
+.env.*
+!.env.example
+
+# テスト / カバレッジ生成物
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# playwright-bdd の生成テスト（既定 outputDir）。手で書いたコードではない
+# （.oxlintrc.json / knip.jsonc / .oxfmtrc.json の同じ exclusion と対になる。
+# 整合性検証（2026-08-08）で `mise run test:e2e` 実行後にこのディレクトリが
+# 未 ignore のまま残ることを確認して追加した）。
+**/.features-gen/
+
+# OS / エディタ
+.DS_Store
+*.swp
+
+# pnpm
+.pnpm-store/
+
+# turbo のローカルキャッシュ（リモートキャッシュは使わない。§5「Turborepoを
+# 採用する理由」）。ルートと各パッケージ配下の両方に生成される。
+.turbo/
+
+# codopsy（check:complexity）が -o/--output 省略時に既定で書き出すレポート。
+# `--save-baseline` を使わない限り毎回上書きされる生成物のためコミットしない。
+codopsy-report.json
+
+# ramune（docs/adr/0001-ramune-architecture.md）のグラフ状態。session.active
+# （ADR 0003「ramune モードの状態機構」）を ramune_start/ramune_end が都度書き換える
+# ローカルの実行時状態であり、コミットすると他の開発者が pull した瞬間に
+# 意図せず ramune モードへ切り替わる（tools/ramune/hooks/src/mode.ts が
+# session.active を fail-closed 判定の根拠にするため）。tools/ramune/viewer/
+# vite.config.ts のコメントも同じ前提（「実行時生成物であり .gitignore 済み」）
+# で書かれている。
+.ramune/

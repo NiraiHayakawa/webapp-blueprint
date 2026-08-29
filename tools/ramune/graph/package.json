@@ -1,0 +1,22 @@
+{
+  "name": "@webapp-blueprint/ramune-graph",
+  "version": "0.0.0",
+  "private": true,
+  "description": ".ramune/graph.json の DAG モデル・スキーマ・不変条件検査・差分操作（insert_node / reopen / abort / set_result）の適用。依存はスキーマ定義の zod のみで、実行環境の SDK は import しないドメイン層。PreToolUse hook が相対 import で参照する persisted-graph.ts だけは依存ゼロを保つ（docs/adr/0004-harness-bootstrap.md）",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

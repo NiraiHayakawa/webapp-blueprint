@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  // oxfmt は既定で .gitignore / .prettierignore を見るが、この 2 つは
+  // どちらもリポジトリに追跡されている生成物であり(.gitignore の対象外)、
+  // oxlint（.oxlintrc.json）・knip（knip.jsonc）が同じ理由で既に除外している。
+  // 揃えないと「生成 → check:agents / bddgen が正しく通る」状態そのものが
+  // fmt ゲートに引っかかる（整合性検証（2026-08-08）で
+  // `mise run check:agents` → `mise run test:e2e` を実行後に `mise run fmt`
+  // が赤くなることを確認した）。
+  "ignorePatterns": [
+    // .claude/skills/ の正本から生成される生成物（§7「skill」）。正本側だけを
+    // フォーマットすればよい。
+    ".agents/skills/**",
+    // playwright-bdd の生成テスト（既定 outputDir）。手で書いたコードではない。
+    "**/.features-gen/**",
+    // architecture checker の fixture。forbidden/ 側は意図的に規約違反を
+    // 含むサンプルコードで、フォーマット規約とは無関係な理由で差分が出ても
+    // ゲートを赤くする意味が無い（他 2 ツールの同じ exclusion と対になる）。
+    "tools/architecture/test/fixtures/**"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    // ルート tsconfig.json の allowImportingTsExtensions: true（blume の
+    // 全体スキャン向けに追加。ルート tsconfig のコメント参照）を打ち消す。
+    // 実ファイルを出力するこの build 用 config は noEmit: false であり、
+    // TypeScript は allowImportingTsExtensions を noEmit /
+    // emitDeclarationOnly / rewriteRelativeImportExtensions のいずれかと
+    // 併用しないと ts(5096) で拒否する。apps/web は `.js` 拡張子の import
+    // 規約（Node ESM の慣例）を使っており、このオプションは元々不要なため
+    // false に戻して構わない。
+    "allowImportingTsExtensions": false
+  },
+  "include": ["src"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

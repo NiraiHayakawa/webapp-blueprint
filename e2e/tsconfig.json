@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // allowJs/checkJs: serve-built-frontend.mjs と check-unused-steps.mjs
+    // （素の Node ESM スクリプト）を型検査対象に含める。
+    // types: TypeScript 7.0.2（tsgo）は、classic tsc と異なり
+    // node_modules/@types 配下のパッケージを自動で取り込まない
+    // （2026-08-08 に実測: "types" を明示しない限り `node:fs` 等の
+    // 組み込みモジュール指定子が解決できず、`oxlint --type-aware` の
+    // 型情報が丸ごと内部の "error" 型に落ちて後続の式すべてに連鎖する。
+    // tools/architecture/tsconfig.json が既に同じ理由で明示している）。
+    "allowJs": true,
+    "checkJs": true,
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "steps", "*.mjs"]
+}

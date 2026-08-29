@@ -1,0 +1,17 @@
+{
+  "name": "@webapp-blueprint/architecture-checker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ts-morph によるアーキテクチャルール checker（docs/plan/Template/20260807_template-design.md §5）",
+  "type": "module",
+  "scripts": {
+    "check": "node src/checker.ts",
+    "test": "node --test test/checker.test.ts test/load-project.test.ts test/observability.test.ts test/observability-tracing.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "ts-morph": "28.0.0",
+    "typescript": "catalog:"
+  }
+}

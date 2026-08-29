@@ -1,0 +1,142 @@
+# monorepo の構成（docs/plan/Template/20260807_template-design.md §3）。
+# tests/policy/ と scripts/ は pnpm workspace パッケージではない
+# （package.json を持たず、ルートから直接 node / vitest で実行する）。
+packages:
+  - apps/*
+  - packages/*
+  - e2e
+  - tools/*
+  # tools/* は tools/ 直下の1階層しか拾わない（tools/architecture 用）。
+  # tools/ramune/{graph,mcp-server,hooks,viewer} は tools/ramune/ の子として
+  # さらに1階層深いため、別途明示する。
+  - tools/ramune/*
+
+allowBuilds:
+  esbuild: true
+  # protobufjs は @opentelemetry/sdk-node が内蔵する OTLP exporter 群
+  # （本テンプレートでは配線しない実際の送り先）の依存として入るだけで、
+  # 実行時に一切使わない。postinstall スクリプトを許可する理由が無いため
+  # false にする（原則4「抑制には理由を書く」と同型の判断: 許可も最小権限
+  # から始め、必要になった時点で理由付きで true にする）。
+  protobufjs: false
+
+# one-version rule（§3）: 共有依存はここに一元宣言し、各 package.json は
+# "catalog:" でのみ参照する。パッケージ間のバージョン分裂を構造的に禁止する。
+# 全バージョンは原則10（完全 pin・7 日待機）に従い、2026-08-08 時点で
+# 公開から 7 日以上経過した最新版を採用している。
+catalog:
+  # 型
+  typescript: 7.0.2
+  # ルート package.json / e2e / tools/architecture の 3 箇所が node: 組み込み
+  # モジュールの型を必要とする（root package.json 自体は §3 の one-version
+  # rule で catalog 経由必須、tools/architecture は従来 24.13.3 を直接 pin
+  # していたが同じ理由で catalog 参照に統一する。2026-08-08 の lint 修正で
+  # 判明した事実: root package.json と e2e/package.json が @types/node を
+  # 持たないと、node: import を含む root 直下のファイル（scripts/*.mjs）と
+  # e2e/*.mjs が `oxlint --type-aware` の型解決に失敗し、以後の式がすべて
+  # 内部の "error" 型として連鎖する（実測: 追加前は 1 ファイルで 100 件超の
+  # typescript(no-unsafe-*) が発生し、追加後に解消した）。
+  "@types/node": 26.2.0
+
+  # MCP サーバー（tools/ramune/mcp-server。ramune を webapp-blueprint に統合する
+  # 移設で新規に持ち込んだ依存。WP5 で spec 2026-07-28（MCP v2）へ移行した。
+  # パッケージ分割に伴い @modelcontextprotocol/sdk 1.x から 4 パッケージ構成へ。
+  # 公開日の確認（`npm view <pkg> time`。2026-08-24 実施。docs/principles/
+  # pin-dependencies.md の 7 日待機を満たす）:
+  # - @modelcontextprotocol/server 2.0.0: 公開 2026-07-27T23:55Z（28 日経過）
+  # - @modelcontextprotocol/client 2.0.0: 同時刻公開（同一リリース列）
+  # - @modelcontextprotocol/node 2.0.0: 同時刻公開（NodeStreamableHTTPServerTransport 用）
+  # - ajv 8.20.0: 公開 2026-04-24（v1 から継続。ramune_apply_ops の入力を
+  #   additionalProperties:false で厳密検証する自前の Ajv インスタンス用）
+  # - zod 4.4.3: 公開 2026-05-04（v1 から継続。graph パッケージが使用）
+  "@modelcontextprotocol/server": 2.0.0
+  "@modelcontextprotocol/client": 2.0.0
+  "@modelcontextprotocol/node": 2.0.0
+  ajv: 8.20.0
+  zod: 4.4.3
+
+  # lint / format（§5 選定ツール）
+  oxlint: 1.78.0
+  oxlint-tsgolint: 7.0.2001
+  # anti-slop（ADR 0009）を載せるための JS プラグイン実行時 API。oxlint と同じ
+  # リリース列で公開されており、バージョンがずれると実行時 API が合わない。
+  # oxlint を上げるときは必ず同じ番号に合わせて上げること（dependabot が
+  # oxlint だけを上げる PR を出すが、それ単独ではマージできない）。
+  "@oxlint/plugins": 1.78.0
+  oxfmt: 0.63.0
+  # ultracite（oxlint.config.ts が extends する opt-out 方式の厳格 preset。
+  # oxlint の全カテゴリ "error" の opt-out 方式を避け preset extends に切り替えた判断）。
+  # 7.9.4 を exact pin する理由:
+  # - 7.10.0（公開 2026-08-02）・7.10.1（公開 2026-08-05）は今日（2026-08-08）
+  #   時点で公開 7 日未満のため、原則10「公開 7 日未満のバージョンは自動
+  #   採用しない」を満たさない。7.9.4 は公開 2026-07-14 で 7 日を満たす
+  #   直近版（`npm view ultracite time` で確認）。
+  # - 互換方向の安全性: ultracite 7.10.2 は oxlint ^1.76.0 向けにビルドされて
+  #   いる（`npm view ultracite@7.10.2 devDependencies` で確認、2026-08-18）。
+  #   手元の oxlint は 1.78.0（>=1.76.0 を満たす）で、ultracite 側が古い世代
+  #   が知らないルール名を参照することはない。逆向き（ultracite が新しく
+  #   oxlint 1.78.0 未収録のルール名を参照する）だと preset 読み込み時に
+  #   loud fail する（ADR 0002 が M0 スパイクで実測した失敗モード）。
+  ultracite: 7.10.2
+
+  # テスト（§4）
+  vitest: 4.1.10
+  "@amiceli/vitest-cucumber": 7.0.0
+  playwright: 1.62.1
+  "@playwright/test": 1.62.1
+  playwright-bdd: 9.2.0
+
+  # tools/ramune/viewer の dev/build/preview。新規選定ではなく、vitest 4.1.10 /
+  # blume 1.2.1 の transitive dependency として pnpm-lock.yaml に既に
+  # この version で解決済み（`grep 'vite@' pnpm-lock.yaml` で確認）。
+  # one-version rule の対象を素直に増やすだけで、新たなサプライチェーン面を
+  # 増やさない（移設元 ramune リポジトリでの選定理由をそのまま引き継ぐ）。
+  vite: 8.2.1
+
+  # 検出系（§5「検出系ツールの運用方針」）
+  knip: 6.32.0
+
+  # タスクグラフとキャッシュ（§5「Turborepoを採用する理由」）。
+  # 2.10.9（公開 2026-08-07）は今日（2026-08-08）時点で公開 7 日未満のため
+  # 原則10を満たさない。2.10.8（公開 2026-07-31、`npm view turbo time` で
+  # 確認）は 8 日経過しており原則10を満たす直近の安定版。
+  turbo: 2.10.9
+
+  # secret スキャン（原則9）
+  secretlint: 13.0.4
+  "@secretlint/secretlint-rule-preset-recommend": 13.0.4
+
+  # ドキュメントビューア（§6 blume）
+  # 1.4.3 に上げない（2026-08-18 判断、dependabot #8 は保留）。1.4.3 は
+  # image-size@2.0.2 を連れてきて、そこに CVE-2025-71329 / CVE-2025-71330
+  # （いずれも HIGH、細工した画像バッファによる DoS）がある。**修正版が
+  # 公開されていない**ため上げる側で回避できず、blume はローカル専用の
+  # docs ビューアで急ぐ理由も無い。上流が image-size を上げたら追随する。
+  blume: 1.3.1
+
+  # 観測性: トレース（原則12「トレースの送り先」節）。API/SDK は常時ロードし、
+  # 実際の送り先（Cloud Trace / OTLP / Datadog 等）だけを空スロットにする
+  # （docs/recipes/tools/observability.md「2. トレース」参照）。
+  # 版はいずれも 2026-08-09 時点で npm registry の公開から 7 日以上経過した
+  # 直近版（`npm view <pkg> time` で確認。原則10）:
+  # - @opentelemetry/api 1.9.1（公開 2026-03-25）
+  # - @opentelemetry/sdk-node 0.221.0（公開 2026-07-21、19日経過）
+  # - @opentelemetry/sdk-trace-base 2.10.0（公開 2026-07-21、19日経過）。
+  #   既定 exporter（ConsoleSpanExporter / InMemorySpanExporter）を提供する。
+  "@opentelemetry/api": 1.9.1
+  "@opentelemetry/sdk-node": 0.221.0
+  "@opentelemetry/sdk-trace-base": 2.10.0
+  # trace-context.test.ts / observe.test.ts が W3C propagator を明示的に
+  # 登録するために使う（sdk-node の依存グラフに既に含まれる版と揃える）。
+  "@opentelemetry/core": 2.10.0
+
+# 推移的依存の差し替え。直接の依存ではないため catalog では固定できないが、
+# 脆弱性が出た版を踏み続ける理由も無いものをここで上書きする。
+# 原則10 に合わせてレンジではなく厳密指定にする（tests/policy/dependency-pin
+# が catalog と同じ基準でここも見る）。
+overrides:
+  # CVE-2026-67213（HIGH、乱数 ID 生成の無限ループによる DoS）。3.3.17 を
+  # 引いているのはビルドツール側の推移的依存で、修正版は 3.3.18。
+  # 2026-08-18 に CI の Trivy が検出した。上流が 3.3.18 以上を引くように
+  # なったらこの行を消す（残しておくと固定していること自体が忘れられる）。
+  nanoid@3: 3.3.18

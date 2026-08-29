@@ -1,0 +1,227 @@
+name: PR Review (Claude)
+
+# 正本: docs/plan/Template/20260807_template-design.md §7「PR自動レビュー」。
+#
+# bootstrap-template の provider 選択までは job を明示的に無効化する。
+# credential の未設定を disabled 状態の代わりに使わない。
+#
+# 有効化の前提(このリポジトリ固有の設定。テンプレートには含まれない):
+#   Actions Secrets に ANTHROPIC_API_KEY (または CLAUDE_CODE_OAUTH_TOKEN) を
+#   登録すること。未設定のまま PR を開いても "Run Claude Code Action" の
+#   ステップが認証エラーで失敗するだけで、他のジョブ(ci.yml)には影響しない。
+#
+# 既知の制約(依存pin。原則10):
+#   anthropics/claude-code-action には Claude Code CLI 自体のバージョンをpinする
+#   入力が無い。唯一の代替である path_to_claude_code_executable は、action自身の
+#   ドキュメントが「古いバージョンだとactionの前提が崩れる可能性がある」と明記して
+#   いるため使わない。Action自体は下記でSHA pinしているが、実行時に自動取得される
+#   CLI本体のバージョンまでは固定できていない(pr-review-codex.yml側は
+#   codex-version で固定できており、非対称。報告に明記した既知の制約)。
+#
+# セキュリティ上の注意(prompt injection): PRのtitle/bodyや差分の内容は
+#   フォークからの投稿を含め信頼できない入力である。claude_args で
+#   --disallowedTools Bash を指定し、任意コマンド実行の経路を塞いでいる
+#   (GitHubへのレビュー投稿・ファイル読み取りは disallow していない)。
+#   fork からの PR でも secrets.ANTHROPIC_API_KEY 自体は読み込み可能な設計
+#   (pull_request イベントの既定挙動)であることは変えていないため、
+#   外部コントリビュータを受け付けるリポジトリでは、鍵の権限を最小化した
+#   専用キーを使う運用を推奨する(このテンプレートの範囲外の運用判断)。
+#
+# 既知の制約(bot が起こした push イベントでの再発火):
+#   GitHub は既定の GITHUB_TOKEN で作られた push からは Actions を再発火しない
+#   (無限ループ防止のプラットフォーム制約)。allowed_bots は「発火した
+#   workflow の中で claude-code-action の実行を許可するアクター」の許可リスト
+#   であり、発火そのものを起こす手段ではない。bot 発火が push イベント経由で
+#   必要になった場合は GitHub App のインストールトークンか PAT に切り替える
+#   必要があり、その場合は §7 の GitHub App 導入(トークン発行元の変更)が前提になる。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-review-claude-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  SUMMARY_MARKER: "<!-- pr-review:claude:summary -->"
+  THREAD_MARKER: "<!-- pr-review:claude -->"
+  SKIP_MARKER: "<!-- pr-review:claude:skipped -->"
+
+jobs:
+  review:
+    # bootstrap-template: Claude 選択時は先頭の false だけ true に変更する。
+    if: ${{ false && github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+
+      - name: 実行の前提判定(mode / diff hash / suggestion適用のみか)
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+
+          mode="$(pr_review_decide_mode "$OWNER_REPO" "$BASE_SHA" "$HEAD_SHA")"
+          diff_hash="$(pr_review_diff_hash "$OWNER_REPO" "$BASE_SHA" "$HEAD_SHA")"
+
+          suggestion_only="false"
+          if [ "$EVENT_ACTION" = "synchronize" ]; then
+            suggestion_only="$(pr_review_is_suggestion_only_push "$OWNER_REPO" "$EVENT_BEFORE" "$EVENT_AFTER")"
+          fi
+
+          previous_hash="$(pr_review_previous_diff_hash "$OWNER_REPO" "$PR_NUMBER" "$SUMMARY_MARKER")"
+
+          skip="false"
+          skip_reason=""
+          if [ "$suggestion_only" = "true" ]; then
+            skip="true"
+            skip_reason="suggestion-only"
+          elif [ -n "$previous_hash" ] && [ "$previous_hash" = "$diff_hash" ]; then
+            skip="true"
+            skip_reason="duplicate-diff"
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "diff_hash=${diff_hash}"
+            echo "skip=${skip}"
+            echo "skip_reason=${skip_reason}"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: skip理由を通知(suggestion適用のみのpushの場合)
+        if: steps.gate.outputs.skip_reason == 'suggestion-only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+          body_file="$(mktemp)"
+          {
+            echo "${SKIP_MARKER}"
+            echo
+            echo "このpushはレビュー提案の適用コミットのみと判定したため、Claudeレビューをスキップしました。"
+            echo "再度レビューしたい場合は、このPRに \`@claude review\` とコメントしてください。"
+          } >"$body_file"
+          pr_review_upsert_comment "$OWNER_REPO" "$PR_NUMBER" "$SKIP_MARKER" "$body_file"
+
+      - name: 前回の未解決レビュースレッドを一括resolve
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+          pr_review_resolve_stale_threads "${{ github.repository_owner }}" "$(basename '${{ github.repository }}')" \
+            "${{ github.event.pull_request.number }}" "$THREAD_MARKER"
+
+      - name: Run Claude Code Action
+        id: run_claude
+        if: steps.gate.outputs.skip == 'false'
+        uses: anthropics/claude-code-action@6b082c41935b4c8a3b8b0ef85ba4ba4d9eeb8975 # v1.0.187 (v1)
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "dependabot[bot]"
+          claude_args: |
+            --max-turns 30
+            --model sonnet
+            --disallowedTools Bash
+            --json-schema '{"type":"object","required":["summary","findings_count"],"properties":{"summary":{"type":"string"},"findings_count":{"type":"integer"}}}'
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+
+            これは PR に対する自動コードレビューである。レビューは日本語で行う。
+
+            モード: ${{ steps.gate.outputs.mode }}
+            - "full" の場合: PRの全変更ファイルを対象に、変更範囲外の既存コードとの整合性も含めてレビューする。
+            - "delta" の場合: このPRの差分(diff)だけを対象にレビューする。
+
+            差分の取得には GitHub の PR 差分取得ツール(get pull request diff /
+            get pull request files 等)を使うこと。Bash は利用できない
+            (--disallowedTools Bash。信頼できないPR本文からのprompt injection対策)。
+
+            手順:
+            1. 具体的で行に紐づく指摘がある場合は、GitHub のレビューコメント機能で
+               対象の行にインラインコメントを付けること。各インラインコメントの本文の
+               末尾には、改行してから次の行をそのまま書くこと(スレッドの再識別に使う。
+               改変・省略しないこと): <!-- pr-review:claude -->
+            2. バグ、設計上の懸念、規約違反(docs/principles/ の原則、AGENTS.md)を優先する。
+               style のみの指摘は必要最小限にする。
+            3. 最後に、レビュー全体の要約(summary)と指摘件数(findings_count)を
+               構造化出力として返すこと。findings_count は 1. で付けたインライン
+               コメントの件数と一致させること。指摘が無かった場合は summary に
+               その旨を書き、findings_count は 0 にすること。
+
+      - name: ターン数が0でないことを機械検証
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          EXECUTION_FILE: ${{ steps.run_claude.outputs.execution_file }}
+        run: |
+          if [ -z "$EXECUTION_FILE" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "execution_file が出力されていない(空振りの可能性)" >&2
+            exit 1
+          fi
+          turns="$(jq '[.[] | select(.type == "assistant")] | length' "$EXECUTION_FILE")"
+          echo "assistant turns: ${turns}"
+          if [ "$turns" -eq 0 ]; then
+            echo "ターン数が0。レビューが実行されずに終了した" >&2
+            exit 1
+          fi
+          if [ "${{ steps.run_claude.outputs.conclusion }}" != "success" ]; then
+            echo "conclusion が success ではない: ${{ steps.run_claude.outputs.conclusion }}" >&2
+            exit 1
+          fi
+
+      - name: 要約マーカーコメントを upsert し、実際に投稿されたことを確認
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DIFF_HASH: ${{ steps.gate.outputs.diff_hash }}
+          MODE: ${{ steps.gate.outputs.mode }}
+          STRUCTURED_OUTPUT: ${{ steps.run_claude.outputs.structured_output }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+
+          summary="$(jq -r '.summary' <<<"$STRUCTURED_OUTPUT")"
+          findings_count="$(jq -r '.findings_count' <<<"$STRUCTURED_OUTPUT")"
+
+          body_file="$(mktemp)"
+          {
+            echo "${SUMMARY_MARKER}"
+            echo "<!-- diff-sha256:${DIFF_HASH} -->"
+            echo
+            echo "## Claude レビュー(${MODE} mode)"
+            echo
+            echo "$summary"
+            echo
+            echo "指摘件数: ${findings_count}"
+          } >"$body_file"
+
+          pr_review_upsert_comment "$OWNER_REPO" "$PR_NUMBER" "$SUMMARY_MARKER" "$body_file"
+
+          posted="$(pr_review_find_marker_comment_id "$OWNER_REPO" "$PR_NUMBER" "$SUMMARY_MARKER")"
+          if [ -z "$posted" ]; then
+            echo "要約マーカーコメントの投稿を確認できなかった" >&2
+            exit 1
+          fi
+          echo "要約マーカーコメント確認OK(comment id: ${posted})"

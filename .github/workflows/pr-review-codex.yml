@@ -1,0 +1,250 @@
+name: PR Review (Codex)
+
+# 正本: docs/plan/Template/20260807_template-design.md §7「PR自動レビュー」。
+#
+# bootstrap-template の provider 選択までは job を明示的に無効化する。
+# credential の未設定を disabled 状態の代わりに使わない。
+#
+# 有効化の前提(このリポジトリ固有の設定。テンプレートには含まれない):
+#   Actions Secrets に OPENAI_API_KEY を登録すること。未設定のまま PR を開いても
+#   "Run Codex" ステップが認証エラーで失敗するだけで、他のジョブ(ci.yml)には
+#   影響しない。
+#
+# 既知の制約: pr-review-claude.yml と同じ(bot発火のプラットフォーム制約)。
+#
+# 依存pin(原則10)の既知の非対称性: このworkflowは codex-version で Codex CLI
+# のバージョンを完全pinできる。一方 pr-review-claude.yml が使う
+# anthropics/claude-code-action には Claude Code CLI 自体のバージョンをpinする
+# 入力が無い(唯一の代替である path_to_claude_code_executable は、action自身の
+# ドキュメントが「古いバージョンだとactionの前提が崩れる可能性がある」と明記して
+# おり、この場合は使わない方を選んだ)。Action自体はSHAでpinしているが、実行時に
+# 取得されるCLI本体のバージョンまでは固定できていない。報告に明記した既知の制約。
+#
+# Claude 側との役割分担: openai/codex-action は GitHub への書き込みツールを
+# 持たない(final-message / output-file を返すだけ)。そのため、PRへの実際の
+# コメント投稿(要約コメントのupsert・インラインコメントの作成)はこの
+# workflow 側(actions/github-script)が行う。これにより、Claude 側で発生する
+# 「インラインコメントの marker 付与を prompt 経由でLLMに守らせる」という
+# 弱さがCodex側には無い(投稿コードそのものがmarkerを付けるため確実)。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-review-codex-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  SUMMARY_MARKER: "<!-- pr-review:codex:summary -->"
+  THREAD_MARKER: "<!-- pr-review:codex -->"
+  SKIP_MARKER: "<!-- pr-review:codex:skipped -->"
+
+jobs:
+  review:
+    # bootstrap-template: Codex 選択時は先頭の false だけ true に変更する。
+    if: ${{ false && github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.gate.outputs.skip }}
+      final_message: ${{ steps.run_codex.outputs.final-message }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+
+      - name: base/head ref を fetch(codexのgit diff実行用)
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --no-tags origin \
+            "$PR_BASE_REF" \
+            "+refs/pull/$PR_NUMBER/head"
+
+      - name: 実行の前提判定(mode / diff hash / suggestion適用のみか)
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+
+          mode="$(pr_review_decide_mode "$OWNER_REPO" "$BASE_SHA" "$HEAD_SHA")"
+          diff_hash="$(pr_review_diff_hash "$OWNER_REPO" "$BASE_SHA" "$HEAD_SHA")"
+
+          suggestion_only="false"
+          if [ "$EVENT_ACTION" = "synchronize" ]; then
+            suggestion_only="$(pr_review_is_suggestion_only_push "$OWNER_REPO" "$EVENT_BEFORE" "$EVENT_AFTER")"
+          fi
+
+          previous_hash="$(pr_review_previous_diff_hash "$OWNER_REPO" "$PR_NUMBER" "$SUMMARY_MARKER")"
+
+          skip="false"
+          skip_reason=""
+          if [ "$suggestion_only" = "true" ]; then
+            skip="true"
+            skip_reason="suggestion-only"
+          elif [ -n "$previous_hash" ] && [ "$previous_hash" = "$diff_hash" ]; then
+            skip="true"
+            skip_reason="duplicate-diff"
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "diff_hash=${diff_hash}"
+            echo "skip=${skip}"
+            echo "skip_reason=${skip_reason}"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: skip理由を通知(suggestion適用のみのpushの場合)
+        if: steps.gate.outputs.skip_reason == 'suggestion-only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+          body_file="$(mktemp)"
+          {
+            echo "${SKIP_MARKER}"
+            echo
+            echo "このpushはレビュー提案の適用コミットのみと判定したため、Codexレビューをスキップしました。"
+            echo "再度レビューしたい場合は、このPRを再度syncする(空コミット等)か、次のコミットまでお待ちください。"
+          } >"$body_file"
+          pr_review_upsert_comment "$OWNER_REPO" "$PR_NUMBER" "$SKIP_MARKER" "$body_file"
+
+      - name: 前回の未解決レビュースレッドを一括resolve
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source .github/scripts/pr-review/common.sh
+          pr_review_resolve_stale_threads "${{ github.repository_owner }}" "$(basename '${{ github.repository }}')" \
+            "${{ github.event.pull_request.number }}" "$THREAD_MARKER"
+
+      - name: Run Codex
+        id: run_codex
+        if: steps.gate.outputs.skip == 'false'
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11 (v1)
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          # 原則10(依存の完全pin)。2026-08-08 時点で公開7日以上経過した最新版
+          # (0.147.0 は 2026-08-07 公開で7日未満のため見送り、0.146.0 = 2026-07-29公開を採用)。
+          codex-version: "0.146.0"
+          permission-profile: ":read-only"
+          model: "gpt-5.6-terra" # absolute-rules: Codex subagentの既定実行モデル。
+          output-file: ${{ runner.temp }}/codex-review-output.json
+          output-schema-file: .github/scripts/pr-review/codex-output-schema.json
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+
+            これは PR に対する自動コードレビューである。レビューは日本語で行う。
+
+            モード: ${{ steps.gate.outputs.mode }}
+            - "full" の場合: PRの全変更ファイルを対象に、変更範囲外の既存コードとの整合性も含めてレビューする。
+            - "delta" の場合: このPRの差分(diff)だけを対象にレビューする。
+
+            差分は次で取得すること:
+              git log --oneline ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+              git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+
+            バグ、設計上の懸念、規約違反(docs/principles/ の原則、AGENTS.md)を優先する。
+            style のみの指摘は必要最小限にする。行に紐づく具体的な指摘は findings に、
+            全体の要約は summary に入れて、指定されたJSON Schemaの形で返すこと。
+            指摘が無かった場合は summary にその旨を書き、findings は空配列にすること。
+            findings の body に hidden marker を含めないこと(投稿側が付与する)。
+
+      - name: ターン数が0でないことを機械検証
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          FINAL_MESSAGE: ${{ steps.run_codex.outputs.final-message }}
+        run: |
+          if [ -z "$FINAL_MESSAGE" ]; then
+            echo "final-message が空。ターン数0とみなし、レビューが実行されなかったと判定する" >&2
+            exit 1
+          fi
+          echo "final-message文字数: ${#FINAL_MESSAGE}"
+
+      - name: 出力を投稿(要約コメントのupsert + インラインコメント作成)
+        id: post
+        if: steps.gate.outputs.skip == 'false'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          OUTPUT_FILE: ${{ runner.temp }}/codex-review-output.json
+          DIFF_HASH: ${{ steps.gate.outputs.diff_hash }}
+          MODE: ${{ steps.gate.outputs.mode }}
+          SUMMARY_MARKER: ${{ env.SUMMARY_MARKER }}
+          THREAD_MARKER: ${{ env.THREAD_MARKER }}
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const raw = fs.readFileSync(process.env.OUTPUT_FILE, "utf8");
+            const output = JSON.parse(raw);
+            const summary = String(output.summary ?? "");
+            const findings = Array.isArray(output.findings) ? output.findings : [];
+
+            // --- 要約コメントの upsert -------------------------------------
+            const summaryMarker = process.env.SUMMARY_MARKER;
+            const body = [
+              summaryMarker,
+              `<!-- diff-sha256:${process.env.DIFF_HASH} -->`,
+              "",
+              `## Codex レビュー(${process.env.MODE} mode)`,
+              "",
+              summary,
+              "",
+              `指摘件数: ${findings.length}`,
+            ].join("\n");
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number,
+            });
+            const existing = comments.filter((c) => c.body?.includes(summaryMarker)).pop();
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: pull_number, body });
+            }
+
+            // --- 実際に投稿されたことの確認 ---------------------------------
+            const after = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number,
+            });
+            if (!after.some((c) => c.body?.includes(summaryMarker))) {
+              core.setFailed("要約マーカーコメントの投稿を確認できなかった");
+              return;
+            }
+
+            // --- インラインコメント(レビュー) ---------------------------------
+            if (findings.length > 0) {
+              const threadMarker = process.env.THREAD_MARKER;
+              await github.rest.pulls.createReview({
+                owner, repo, pull_number,
+                event: "COMMENT",
+                commit_id: context.payload.pull_request.head.sha,
+                comments: findings.map((f) => ({
+                  path: f.path,
+                  line: f.line,
+                  side: f.side === "LEFT" ? "LEFT" : "RIGHT",
+                  body: `${f.body}\n\n${threadMarker}`,
+                })),
+              });
+            }

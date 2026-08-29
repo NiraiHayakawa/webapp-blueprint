@@ -1,0 +1,65 @@
+---
+name: pull-request
+description: 指定したブランチへの GitHub プルリクエストを作成するときに使う（デフォルトは main）。
+argument-hint: "[base_branch]"
+---
+<!-- 生成物 (scripts/sync-agent-assets.mjs) -- 直接編集しないでください。正本: .claude/skills/pull-request/SKILL.md / 再生成: mise run sync:agents -->
+
+# pull-request — プルリクエストを作る
+
+以下の手順で GitHub プルリクエストを作成する。
+
+1. ベースブランチを決定する:
+   - `$ARGUMENTS` が指定されていればそれを使う
+   - 指定がなければ `main` を既定のベースブランチとする
+2. `git fetch origin` でリモートの参照を最新化する。以降の diff/log は `origin/[ベースブランチ]` を比較対象にする
+3. 現在の状態を並行して確認する:
+   - `git status` で未追跡ファイルとステージング状態
+   - `git diff origin/[ベースブランチ]...HEAD` で PR に含まれる全変更
+   - 現在のブランチがリモートをトラッキングしているか・最新か
+4. `git log --oneline origin/[ベースブランチ]..HEAD` でブランチが分岐してからのコミット履歴を把握する
+5. PR に含まれる全変更を分析する:
+   - **最新のコミットだけでなく、PR に含まれる全コミット**を確認する
+   - 全コミットにわたる変更の目的とスコープを理解する
+   - PR の概要を日本語でまとめる（設計の正本 §6「docs の言語」: docs 配下は日本語。PR 本文も同じ扱いにする）
+6. 次の観点で PR に注記が必要か確認する:
+   - **`contract/` を含む変更**: 設計の正本 §3「契約横断の変更は 1 PR で原子的に行う」により、契約だけを先行させる変更は作らない前提がある。`contract/` の変更に実装側の追随が伴っているかを確認し、伴っていなければ理由を PR 本文に書く
+   - **sensitive path**（`auth` / `migrations` / `infra` / `.github/workflows` 配下）を含む変更: 設計の正本 §7「PR 自動レビュー」により、これらを含む PR は自動レビューが full mode を強制される。差分が大きくなりがちなので、分割できないか一度検討する
+7. PR のタイトルと説明文を日本語で作成する:
+   - タイトル: 変更内容を簡潔に1行で表す
+   - 説明文のフォーマット:
+     ```
+     ## Background
+     - [変更が必要な理由 1]
+     - [変更が必要な理由 2]
+
+     ## Summary
+     - [変更内容 1]
+     - [変更内容 2]
+     ```
+   - `contract/` の変更を含む場合は `## Contract change` を追加し、何を変えたか・実装側の追随内容を明記する
+   - `docs/adr/` の変更を含む場合は `## ADR` を追加し、対応する規範ファイル（AGENTS.md / 原則 / レシピ / skill）の更新を同梱したかを明記する（`adr` skill 参照）
+8. 現在のブランチがリモートに未 push、または最新でなければ `git push -u origin [ブランチ名]` で push する
+9. 次の形式で `gh pr create` を使って PR を作成する:
+   ```
+   gh pr create --base [ベースブランチ] --title "[日本語のPRタイトル]" --body "$(cat <<'EOF'
+   ## Background
+   - [理由 1]
+
+   ## Summary
+   - [変更内容 1]
+   EOF
+   )"
+   ```
+10. PR 作成が完了したら URL を表示する
+
+## 注意事項
+
+- 最新のコミットだけでなく、ブランチ内の**全コミット**を分析する
+- PR のタイトルと説明文は日本語で書く
+- push は [commit skill](../commit/SKILL.md) と異なり、ユーザーから明示的に指示されるまで行わない
+- ユーザーから明示的に指示されない限り、強制 push しない
+- PR 作成前に現在のブランチが最新であることを確認する
+- PR 本文のフォーマット崩れを防ぐため HEREDOC 形式を使う
+- Background は「なぜ」、Summary は「何を」に焦点を当てる
+- main への直接 push・force-push は行わない

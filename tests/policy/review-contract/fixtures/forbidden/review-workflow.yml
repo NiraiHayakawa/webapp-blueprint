@@ -1,0 +1,8 @@
+name: review
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # AGENTS.md が言及する marker 文字列がここに存在しない(意図的に破った状態)。
+    steps:
+      - run: echo post-review

@@ -1,0 +1,195 @@
+name: CI
+
+# 正本: docs/plan/Template/20260807_template-design.md §5「タスクとゲート」/「CIの実行範囲」。
+#
+# - matrix には mise.toml の [tasks.check].depends をそのまま列挙する。検査ロジックは
+#   一切ここに書かない(原則8「検証は1コマンド。CIはそれを呼ぶだけ」)。
+#   depends の内容を変えたら、この matrix も同じ内容に変える(mise.toml が正本)。
+# - dependency-gate ジョブ(lockfile整合)を最初に置き、他の全ジョブがそれに
+#   needs で依存する(原則10「lockfileの整合をCIゲートの最初に置き、他の全
+#   ジョブをそれに依存させる」)。ジョブが増えたときにこのゲートを迂回でき
+#   ないことは tests/policy/ の CI 構造テストが検証する対象(原則4)。
+# - CI は全実行する。差分検出(affected実行)は導入しない(§5「CIの実行範囲」)。
+# - E2E はここに含めない。main マージ時のみ e2e.yml で実行する。
+# - source-sync ジョブ(原則11②「同期」。mise.toml の
+#   [tasks."check:source-sync"] 参照)は pull_request イベントでのみ実行する。
+#   base が「同一 PR 内」に対応しない push イベントでは意味を持たないため、
+#   fail-fast の対象にせず if で明示的にスキップする(黙って緑にするのとは
+#   違う — 「そもそも実行しない」ことが workflow 上に明示されている)。
+#   ci-required はこの区別を踏まえて判定する。
+# - check-vulnerabilities ジョブ(Trivy。mise.toml の
+#   [tasks."check:vulnerabilities"] 参照)は matrix(checks job)には含めない。
+#   [tasks.check].depends の対象外(脆弱性DBのダウンロードにネットワークが
+#   要る)だが、CI では独立ジョブとして毎回実行し、ci-required の判定対象に
+#   含める(docs/recipes/tools/ci.md「4. 脆弱性 / SAST」参照)。
+# - CodeQL ジョブは置いていない。ローカルの `mise run check:codeql` が実行経路と
+#   なる。public リポジトリでは GitHub ホストの Code Scanning を無償で有効化できる
+#   ため、必要に応じて `.github/workflows/codeql.yml` を追加して拡張できる。詳細は
+#   docs/recipes/tools/ci.md「4. 脆弱性 / SAST」参照。
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 依存 pin / lockfile 整合ゲート(原則10)。他の全ジョブがこれに依存する。
+  # ---------------------------------------------------------------------------
+  dependency-gate:
+    name: dependency-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: mise install(ツール完全pinの解決)
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      - name: pnpm-lock.yaml が manifest と一致していることを検証
+        run: pnpm install --frozen-lockfile
+
+  # ---------------------------------------------------------------------------
+  # mise.toml [tasks.check].depends の全タスクを matrix でそのまま実行する。
+  # ---------------------------------------------------------------------------
+  checks:
+    name: mise run ${{ matrix.task }}
+    needs: dependency-gate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - lint
+          - fmt
+          - typecheck
+          - test
+          - knip
+          - similarity
+          - "check:complexity"
+          - "check:secrets"
+          - "check:architecture"
+          - "test:policy"
+          - "check:agents"
+          - "check:terraform"
+          - "check:workflows"
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: mise install
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      - name: pnpm install(frozen-lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: mise run ${{ matrix.task }}
+        run: mise run "${{ matrix.task }}"
+
+  # ---------------------------------------------------------------------------
+  # 原則11②「同期」ゲート。pull_request イベントでのみ実行する
+  # (mise.toml の [tasks."check:source-sync"] / scripts/check-source-sync.mjs 参照)。
+  # base との diff を取るため、このジョブの checkout だけ fetch-depth: 0
+  # にする(他ジョブの checkout は変更しない)。
+  # ---------------------------------------------------------------------------
+  source-sync:
+    name: check:source-sync(原則11②)
+    needs: dependency-gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout(base との diff を取るためフルヒストリー)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: mise install
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      - name: pnpm install(frozen-lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: mise run check:source-sync
+        env:
+          SOURCE_SYNC_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: mise run check:source-sync
+
+  # ---------------------------------------------------------------------------
+  # Trivy による依存(SCA)・Terraform設定ミスの脆弱性スキャン。
+  # 原則10「依存 pin」のもう半分(新しすぎるものを避ける pin+cooldown だけでは、
+  # pin した後に脆弱と判明したものには無力)を埋める。trivy.yaml / .trivyignore
+  # / mise.toml の [tasks."check:vulnerabilities"] 参照。
+  # ---------------------------------------------------------------------------
+  check-vulnerabilities:
+    name: check:vulnerabilities(Trivy)
+    needs: dependency-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: mise install
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      - name: pnpm install(frozen-lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: mise run check:vulnerabilities
+        run: mise run check:vulnerabilities
+
+  # ---------------------------------------------------------------------------
+  # 集約ジョブ。branch protection の required check はこれ 1 個だけを指定する。
+  # (CodeQL は置いていない。理由は本ファイル冒頭のコメント参照)
+  # ---------------------------------------------------------------------------
+  ci-required:
+    name: CI required
+    if: always()
+    needs:
+      - dependency-gate
+      - checks
+      - source-sync
+      - check-vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - name: 依存ジョブの結果を判定
+        run: |
+          if [ "${{ needs.dependency-gate.result }}" != "success" ]; then
+            echo "dependency-gate が成功していない: ${{ needs.dependency-gate.result }}" >&2
+            exit 1
+          fi
+          if [ "${{ needs.checks.result }}" != "success" ]; then
+            echo "checks(matrix) が全て成功していない: ${{ needs.checks.result }}" >&2
+            exit 1
+          fi
+          # source-sync は pull_request イベントでのみ実行される(job の if 参照)。
+          # push イベントでは "skipped" になる。これは黙って緑にしているのではなく
+          # 「base が同一 PR 内に対応しないこの文脈では実行しない」という明示的な
+          # 設計であり、pull_request なのに成功していない場合だけ落とす。
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.source-sync.result }}" != "success" ]; then
+            echo "source-sync が成功していない: ${{ needs.source-sync.result }}" >&2
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ needs.source-sync.result }}" != "skipped" ]; then
+            echo "source-sync は pull_request 以外では skipped であるべきだが実際は ${{ needs.source-sync.result }}" >&2
+            exit 1
+          fi
+          if [ "${{ needs.check-vulnerabilities.result }}" != "success" ]; then
+            echo "check-vulnerabilities が成功していない: ${{ needs.check-vulnerabilities.result }}" >&2
+            exit 1
+          fi
+          echo "全ゲート成功"

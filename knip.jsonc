@@ -1,0 +1,139 @@
+{
+  // ファイル名について: docs/plan/Template/20260807_template-design.md §10 の
+  // 成果物一覧は "knip.json" と書いている。knip.json 自体も knip の自動探索
+  // 対象なので機能はするが、strict JSON はコメントを持てない。この設定には
+  // 除外理由（原則4「抑制には理由を書く」/ 本テンプレートの自己適用）を
+  // 書く必要があるため、knip が同じく自動探索する knip.jsonc を使う
+  // （https://knip.dev/overview/configuration で "Location" に両方が
+  // 列挙されていることを 2026-08-08 に確認）。
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+
+  // ============================================================
+  // --strict は使わない（整合性検証で確定した決定。mise.toml 参照）
+  // ============================================================
+  // 元は mise.toml の knip task が `knip --strict` を渡していたが、
+  // 整合性検証（2026-08-08）で `mise run check` を実行して失敗を確認し、
+  // --strict を外す決定をした。詳しい経緯は mise.toml の [tasks.knip] の
+  // description 参照。要点だけ書くと: --strict は --production を含意し
+  // （https://knip.dev/features/production-mode）、production mode では
+  // 「unused/unlisted dependency」の判定対象が package.json の
+  // "dependencies" のみになり "devDependencies" が対象から外れ、かつ
+  // テストファイル経由の到達性が usage 判定から外れる。このリポジトリは
+  // 全ワークスペースが devDependencies のみ（実行時依存が無いツール／
+  // テンプレートリポジトリのため）で、多くの export がテストファイルから
+  // しか使われない。そのため --strict では (a) devDependencies の未使用が
+  // 一切検出できず(§5「knip（未使用検出）」の目的そのものが空振りする)、
+  // (b) 実際には devDependencies に正しく記載済みの依存
+  // (ts-morph・@playwright/test・playwright-bdd)が "unlisted" と誤検出され、
+  // テストファイルからのみ使われる export(TaskTitleEmptyError 等)が
+  // "unused" と誤検出される、の両方が起きることを実行して確認した。
+  //
+  // 以下の entry/ignore はどちらのモードでも false positive を増やさない
+  // ように書いてある（`knip --strict` を手元で個別に走らせても大きく壊れない
+  // ようにする、という保険）。
+
+  // apps/*, packages/*, e2e, tools/* は pnpm-workspace.yaml から knip が
+  // 自動検出する（knip の既定挙動）。このファイルでは推測で埋めない。
+  //
+  // ルートワークスペース（"."）は明示する。tests/policy/ と scripts/ は
+  // pnpm workspace パッケージではない（pnpm-workspace.yaml のコメント
+  // 参照）ため、ルート package.json 直下のコードとして扱われる。
+  //
+  // 末尾の "!" は production パターンの印。"!" を落とすと --strict 実行時に
+  // 下記の entry/project がまるごと無視され、対象ゼロで空振りする
+  // （受入条件1と同種の事故）。
+  "workspaces": {
+    "apps/api": {
+      "entry": [],
+    },
+    "apps/web": {
+      "entry": ["src/main.tsx", "src/features/*/index.ts", "src/lib/*/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+    },
+    "contract": {
+      "entry": [],
+    },
+    "tools/architecture": {
+      "entry": ["src/checker.ts", "src/rules/*.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+    },
+    "tests/policy": {
+      "entry": ["**/*.check.ts", "**/*.test.ts"],
+      "project": ["**/*.ts"],
+    },
+    "e2e": {
+      "entry": ["playwright.config.ts", "serve-built-frontend.mjs", "steps/**/*.ts"],
+      "project": ["steps/**/*.ts", "playwright.config.ts"],
+    },
+    ".": {
+      "entry": [
+        // mise task から `node scripts/sync-agent-assets.mjs` として直接
+        // 起動される。package.json に scripts フィールドが無く、knip の
+        // 既定 plugin はどのツールもこのファイルを認識しないため、
+        // entry として明示しないと exported 関数が「未使用」と誤検出される。
+        "scripts/*.mjs!",
+        // blume CLI が実行時に読み込む設定ファイル。コードから import
+        // されないため、明示しないと「未使用ファイル」として検出される
+        // （knip に blume 専用 plugin は無い。2026-08-08 時点で
+        // https://knip.dev/reference/plugins に blume の記載なしを確認）。
+        "blume.config.ts!",
+        // vitest.config.ts は明示しない: knip 組み込みの vitest plugin が
+        // 既に entry として認識しており、明示すると
+        // `knip`（--strict 無し）実行時に "Remove redundant entry pattern"
+        // という Configuration hint が出ることを確認した。
+        //
+        // tests/policy/**/*.{test,spec}.ts も明示しない: 存在しないパターンを
+        // entry に書くと同じ hint（no matches）が出るだけで実害はないが、
+        // 実在してからでも vitest plugin が vitest.config.ts の include
+        // から拾えるため、先に推測で書かない。
+      ],
+      "project": ["scripts/**/*.mjs!", "*.config.ts!"],
+    },
+  },
+
+  // 生成物は「未使用」判定の対象にしない。
+  "ignore": [
+    // blume のローカル作業ディレクトリ（.gitignore と同じ理由。§6「blume」）。
+    ".blume/**",
+    // .claude/skills/ の正本から生成される生成物（§7「skill」）。正本側
+    // （.claude/skills/）だけを見ればよく、生成物側の export/import は
+    // 二重に検査する意味がない。
+    ".agents/skills/**",
+    // playwright-bdd の生成テスト（既定 outputDir）。手で書いたコードではない。
+    "**/.features-gen/**",
+    // architecture checker（tools/architecture）の fixture。forbidden/ 側は
+    // 意図的に規約違反（禁止ライブラリの import 等）を含むサンプルコードで、
+    // 実際には何にも import されない・存在しないパッケージを import する
+    // ことがある。knip の「未使用ファイル」「未解決 import」判定は
+    // ここでは無意味なノイズになる（oxlint.config.ts の同じ exclusion と
+    // 対になる理由。§5「architecture checker」/ 受入条件2）。
+    "tools/architecture/test/fixtures/**",
+  ],
+
+  // 2026-08-08 に `knip`（--strict 無し。mise.toml が実際に使うモード）を
+  // 実行して確認した、実在する false positive。いずれも mise.toml の task
+  // からのみ呼ばれる CLI ツールで、package.json に "scripts" フィールドが
+  // 無いため knip はどの起動経路も認識できない（scripts/sync-agent-assets.mjs
+  // や blume.config.ts と同じ根本原因: mise.toml は knip にとって不透明）。
+  //
+  // "blume" はここに含めない: blume.config.ts の entry から
+  // `import { defineConfig } from "blume"` として実際に import されており、
+  // knip が正しく使用中と認識できる。ignoreDependencies に入れると逆に
+  // "unnecessary" という Configuration hint が出る（2026-08-08 に確認）。
+  "ignoreDependencies": [
+    "oxlint",
+    // oxlint の --type-aware（型情報付き診断）が内部で使う。
+    // oxlint 自身からのみ参照され、コードから import されない。
+    "oxlint-tsgolint",
+    "oxfmt",
+    "secretlint",
+    "@secretlint/secretlint-rule-preset-recommend",
+    // mise.toml の typecheck / test task から `pnpm exec turbo run ...` と
+    // して直接起動される CLI（§5「Turborepoを採用する理由」）。knip に
+    // turbo 専用 plugin は無く（2026-08-08 時点で
+    // https://knip.dev/reference/plugins に記載なしを確認）、
+    // package.json の "scripts" も経由しないため、他の直接起動 CLI
+    // （oxlint 等）と同じ理由でここに明示する。
+    "turbo",
+  ],
+}

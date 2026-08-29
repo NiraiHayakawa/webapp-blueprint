@@ -1,0 +1,17 @@
+{
+  "ramune-policy-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "mcp_ramune_.*|write_to_file|replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e 'import fs from \"node:fs\";import path from \"node:path\";import { pathToFileURL } from \"node:url\";function f(d){if(fs.existsSync(path.join(d,\"tools/ramune/hooks/src/adapters/antigravity/cli.ts\")))return d;const p=path.dirname(d);if(p===d)return process.cwd();return f(p);}await import(pathToFileURL(path.join(f(process.cwd()),\"tools/ramune/hooks/src/adapters/antigravity/cli.ts\")).href);'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

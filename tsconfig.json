@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    // tools/architecture の内部 import は `.ts` 拡張子で書かれている
+    // （`tools/architecture/tsconfig.json` が個別に有効化している）。
+    // `mise run docs:check`（blume）はパッケージ単位の tsconfig を辿らず、
+    // ルート起点で 1 つの TypeScript プログラムとしてリポジトリ全体を
+    // 走査するため（整合性検証（2026-08-08）で実行して確認）、この
+    // オプションもルートに揃えないと tools/architecture のソース全体が
+    // ts(5097) で落ちる。他パッケージは `.js` 拡張子の import 規約
+    // （Node ESM の慣例）を使っており、このオプションを足しても既存の
+    // 動作は変わらない（許可が増えるだけで禁止は増えない）。
+    "allowImportingTsExtensions": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+
+  // ルート tsconfig.json は「include を書かない = リポジトリ全体」という
+  // TypeScript の既定挙動を持つ。各パッケージは自分の tsconfig.json で
+  // "include": ["src"] 等を明示しており通常はこのルート設定を直接使わないが、
+  // blume の `mise run docs:check`（内部で tsc 相当の型検査を走らせる）は
+  // ルート起点でこの config を直接使う。整合性検証（2026-08-08）で
+  // `mise run docs:check` を実行して確認した実例: architecture checker
+  // （tools/architecture）の fixture テスト（`test/fixtures/**`）は意図的に
+  // 規約違反・存在しないモジュールの import を含むサンプルコードで、
+  // oxlint（oxlint.config.ts の ignorePatterns）・knip（knip.jsonc の ignore）は
+  // 同じ理由でこの 1 ディレクトリを既に除外している。ルート tsconfig にも
+  // 同じ除外を揃える。
+  "exclude": ["tools/architecture/test/fixtures"]
+}

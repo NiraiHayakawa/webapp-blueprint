@@ -1,0 +1,25 @@
+amends "package://pkg.pkl-lang.org/github.com/mizchi/pkfire/pkfire@0.14.0#/Taskfile.pkl"
+
+// git hook の配線だけを持つ。実処理は mise task を呼ぶ（§5「タスクとゲート」）。
+
+local preCommit: Task = new {
+  name = "pre-commit"
+  cmd = "mise run check:whitespace"
+  cache = false
+  // git は hook に位置引数を渡す（pre-commit は無し、pre-push は remote 名と URL）。
+  // `pkf hooks install` が生成する hook は `pkf run <task> -- "$@"` の形なので、
+  // acceptsArgs を立てないと引数を受け取れずに hook 自体が落ちる。引数は使わない。
+  acceptsArgs = true
+}
+
+local prePush: Task = new {
+  name = "pre-push"
+  cmd = "mise run check:secrets"
+  cache = false
+  // git は hook に位置引数を渡す（pre-commit は無し、pre-push は remote 名と URL）。
+  // `pkf hooks install` が生成する hook は `pkf run <task> -- "$@"` の形なので、
+  // acceptsArgs を立てないと引数を受け取れずに hook 自体が落ちる。引数は使わない。
+  acceptsArgs = true
+}
+
+tasks { preCommit; prePush }

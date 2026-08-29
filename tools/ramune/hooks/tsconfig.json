@@ -1,0 +1,14 @@
+{
+  // TypeScript 7.0.2（tsgo）は node_modules/@types 配下を自動で取り込まない
+  // （packages/graph/tsconfig.json / packages/mcp-server/tsconfig.json と同じ理由）。
+  // 2026-08-08、Orchestrator/Planner/Worker ロール判定の実装時に
+  // `pnpm --filter ./packages/hooks run typecheck` を実行して発覚: `process` /
+  // `import.meta.url` の型が解決できず TS2591 で落ちていた（本ファイルにこの
+  // 設定が無かったのが原因で、role.ts / policy.ts の変更とは無関係の
+  // 既存の抜け漏れ）。
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

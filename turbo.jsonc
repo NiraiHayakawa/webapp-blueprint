@@ -1,0 +1,39 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+
+  // 個人利用のみ（design doc §5「Turborepoを採用する理由」）。
+  // トークンが将来 `turbo login` されていても、remote cache には一切
+  // 触れない設定を明示する（既定値の暗黙依存を避ける。原則2）。
+  "remoteCache": {
+    "enabled": false,
+  },
+
+  // 各パッケージの tsconfig.json は `"extends": "../../tsconfig.json"` で
+  // このルート tsconfig.json を参照する（パッケージ外のファイル）。turbo の
+  // 既定の入力追跡はパッケージディレクトリ内の git 管理ファイルに限られ、
+  // パッケージ外のこのファイルは含まれない。globalDependencies に宣言する
+  // ことで、ルート tsconfig.json の変更が全パッケージの typecheck/test の
+  // キャッシュを無効化するようにする。
+  "globalDependencies": ["tsconfig.json"],
+
+  // turbo に載せるのは per-package のタスク（各パッケージの package.json が
+  // 持つ script）だけにする。oxlint / secretlint / knip / similarity-ts /
+  // architecture checker / policy-as-test のようにリポジトリ全体を 1 回
+  // 舐めるツールは載せない（載せてもキャッシュが効かず、タスクグラフだけ
+  // mise と二重管理になる。mise.toml の該当タスクが直接呼ぶ）。
+  "tasks": {
+    "typecheck": {
+      // 型検査はソース以外の副作用を持たない（ファイル出力なし）。
+      // ログ自体はキャッシュ対象になる（turbo の既定挙動）ため、
+      // outputs は空でよい。
+      "outputs": [],
+    },
+    "test": {
+      "outputs": [],
+    },
+    "build": {
+      // apps/web のみが持つ script。dist/ 配下がビルド成果物。
+      "outputs": ["dist/**"],
+    },
+  },
+}
