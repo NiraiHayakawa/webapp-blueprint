@@ -4,6 +4,8 @@ name: PR Review (Claude)
 #
 # bootstrap-template の provider 選択までは job を明示的に無効化する。
 # credential の未設定を disabled 状態の代わりに使わない。
+# この公開テンプレート自身では外部 PR を起点にしない。利用先で Claude review を
+# 採用するときに pull_request trigger と job の有効化を同時に行う。
 #
 # 有効化の前提(このリポジトリ固有の設定。テンプレートには含まれない):
 #   Actions Secrets に ANTHROPIC_API_KEY (または CLAUDE_CODE_OAUTH_TOKEN) を
@@ -36,8 +38,7 @@ name: PR Review (Claude)
 #   必要があり、その場合は §7 の GitHub App 導入(トークン発行元の変更)が前提になる。
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: pr-review-claude-${{ github.event.pull_request.number }}

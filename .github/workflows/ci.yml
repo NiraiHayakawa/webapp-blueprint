@@ -11,6 +11,8 @@ name: CI
 #   ないことは tests/policy/ の CI 構造テストが検証する対象(原則4)。
 # - CI は全実行する。差分検出(affected実行)は導入しない(§5「CIの実行範囲」)。
 # - E2E はここに含めない。main マージ時のみ e2e.yml で実行する。
+# - この公開テンプレート自身では、外部 PR のコードを GitHub-hosted runner 上で
+#   実行しない。CI は main への push または明示的な手動実行に限定する。
 # - source-sync ジョブ(原則11②「同期」。mise.toml の
 #   [tasks."check:source-sync"] 参照)は pull_request イベントでのみ実行する。
 #   base が「同一 PR 内」に対応しない push イベントでは意味を持たないため、
@@ -28,10 +30,10 @@ name: CI
 #   docs/recipes/tools/ci.md「4. 脆弱性 / SAST」参照。
 
 on:
-  pull_request:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}

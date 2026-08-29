@@ -4,6 +4,8 @@ name: PR Review (Codex)
 #
 # bootstrap-template の provider 選択までは job を明示的に無効化する。
 # credential の未設定を disabled 状態の代わりに使わない。
+# この公開テンプレート自身では外部 PR を起点にしない。利用先で Codex review を
+# 採用するときに pull_request trigger と job の有効化を同時に行う。
 #
 # 有効化の前提(このリポジトリ固有の設定。テンプレートには含まれない):
 #   Actions Secrets に OPENAI_API_KEY を登録すること。未設定のまま PR を開いても
@@ -28,8 +30,7 @@ name: PR Review (Codex)
 # 弱さがCodex側には無い(投稿コードそのものがmarkerを付けるため確実)。
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: pr-review-codex-${{ github.event.pull_request.number }}
