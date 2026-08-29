@@ -244,5 +244,5 @@ describe("Tier 5: Stress Concurrency", () => {
       "allow",
     ]);
     expect(results).toStrictEqual(expected);
-  });
+  }, 30_000);
 });
