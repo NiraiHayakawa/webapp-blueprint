@@ -12,6 +12,7 @@ packages:
   - tools/ramune/*
 
 allowBuilds:
+  "@scarf/scarf": true
   esbuild: true
   # protobufjs は @opentelemetry/sdk-node が内蔵する OTLP exporter 群
   # （本テンプレートでは配線しない実際の送り先）の依存として入るだけで、
@@ -63,7 +64,7 @@ catalog:
   # oxlint を上げるときは必ず同じ番号に合わせて上げること（dependabot が
   # oxlint だけを上げる PR を出すが、それ単独ではマージできない）。
   "@oxlint/plugins": 1.79.0
-  oxfmt: 0.63.0
+  oxfmt: 0.65.0
   # ultracite（oxlint.config.ts が extends する opt-out 方式の厳格 preset。
   # oxlint の全カテゴリ "error" の opt-out 方式を避け preset extends に切り替えた判断）。
   # 7.9.4 を exact pin する理由:
@@ -77,10 +78,10 @@ catalog:
   #   が知らないルール名を参照することはない。逆向き（ultracite が新しく
   #   oxlint 1.78.0 未収録のルール名を参照する）だと preset 読み込み時に
   #   loud fail する（ADR 0002 が M0 スパイクで実測した失敗モード）。
-  ultracite: 7.10.2
+  ultracite: 7.10.7
 
   # テスト（§4）
-  vitest: 4.1.10
+  vitest: 4.1.11
   "@amiceli/vitest-cucumber": 7.0.0
   playwright: 1.62.1
   "@playwright/test": 1.62.1
@@ -112,7 +113,7 @@ catalog:
   # （いずれも HIGH、細工した画像バッファによる DoS）がある。**修正版が
   # 公開されていない**ため上げる側で回避できず、blume はローカル専用の
   # docs ビューアで急ぐ理由も無い。上流が image-size を上げたら追随する。
-  blume: 1.3.1
+  blume: 1.5.3
 
   # 観測性: トレース（原則12「トレースの送り先」節）。API/SDK は常時ロードし、
   # 実際の送り先（Cloud Trace / OTLP / Datadog 等）だけを空スロットにする
