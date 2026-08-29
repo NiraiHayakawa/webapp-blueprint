@@ -56,7 +56,7 @@ catalog:
   zod: 4.4.3
 
   # lint / format（§5 選定ツール）
-  oxlint: 1.78.0
+  oxlint: 1.79.0
   oxlint-tsgolint: 7.0.2001
   # anti-slop（ADR 0009）を載せるための JS プラグイン実行時 API。oxlint と同じ
   # リリース列で公開されており、バージョンがずれると実行時 API が合わない。
