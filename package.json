@@ -18,10 +18,5 @@
     "ultracite": "catalog:",
     "vitest": "catalog:"
   },
-  "packageManager": "pnpm@11.19.0",
-  "pnpm": {
-    "ignoredBuiltDependencies": [
-      "@scarf/scarf"
-    ]
-  }
+  "packageManager": "pnpm@11.19.0"
 }
