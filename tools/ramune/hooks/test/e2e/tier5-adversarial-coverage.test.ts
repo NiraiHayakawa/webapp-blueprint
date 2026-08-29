@@ -15,6 +15,7 @@ const ACTIVE_GRAPH = v2GraphJson({ state: "active", runId: "run-e2e-t5-adv", epo
 const CLIENTS: readonly ClientType[] = ["claude", "antigravity", "codex"];
 const HUGE_PAYLOAD_SIZE = 100_000;
 const CONCURRENT_BATCH_SIZE = 10;
+const STRESS_TEST_TIMEOUT_MS = 30_000;
 
 function buildDefaultInputForClient(client: ClientType): string {
   if (client === "claude") {
@@ -217,32 +218,36 @@ describe("Tier 5: Stress Concurrency", () => {
     fs.rmSync(parentDir, { recursive: true, force: true });
   });
 
-  it("T5-9: Concurrent burst of mixed client executions succeeds reliably", async () => {
-    const tasks = Array.from({ length: CONCURRENT_BATCH_SIZE }, async () => {
-      const claude = runHookSubprocess(
-        "claude",
-        buildClaudeInput({ toolName: "Edit", agentType: "worker" }),
-        repoRoot,
-      );
-      const anti = runHookSubprocess(
-        "antigravity",
-        buildAntigravityInput({ toolName: "write_to_file" }),
-        repoRoot,
-      );
-      const codex = runHookSubprocess(
-        "codex",
-        buildCodexInput({ toolName: "ramune_advance_integration", role: "integrator" }),
-        repoRoot,
-      );
-      return [claude.decision, anti.decision, codex.decision];
-    });
+  it(
+    "T5-9: Concurrent burst of mixed client executions succeeds reliably",
+    async () => {
+      const tasks = Array.from({ length: CONCURRENT_BATCH_SIZE }, async () => {
+        const claude = runHookSubprocess(
+          "claude",
+          buildClaudeInput({ toolName: "Edit", agentType: "worker" }),
+          repoRoot,
+        );
+        const anti = runHookSubprocess(
+          "antigravity",
+          buildAntigravityInput({ toolName: "write_to_file" }),
+          repoRoot,
+        );
+        const codex = runHookSubprocess(
+          "codex",
+          buildCodexInput({ toolName: "ramune_advance_integration", role: "integrator" }),
+          repoRoot,
+        );
+        return [claude.decision, anti.decision, codex.decision];
+      });
 
-    const results = await Promise.all(tasks);
-    const expected = Array.from({ length: CONCURRENT_BATCH_SIZE }, () => [
-      "allow",
-      "deny",
-      "allow",
-    ]);
-    expect(results).toStrictEqual(expected);
-  }, 30_000);
+      const results = await Promise.all(tasks);
+      const expected = Array.from({ length: CONCURRENT_BATCH_SIZE }, () => [
+        "allow",
+        "deny",
+        "allow",
+      ]);
+      expect(results).toStrictEqual(expected);
+    },
+    STRESS_TEST_TIMEOUT_MS,
+  );
 });
