@@ -91,7 +91,7 @@ catalog:
   # この version で解決済み（`grep 'vite@' pnpm-lock.yaml` で確認）。
   # one-version rule の対象を素直に増やすだけで、新たなサプライチェーン面を
   # 増やさない（移設元 ramune リポジトリでの選定理由をそのまま引き継ぐ）。
-  vite: 8.2.1
+  vite: 8.2.2
 
   # 検出系（§5「検出系ツールの運用方針」）
   knip: 6.32.0
