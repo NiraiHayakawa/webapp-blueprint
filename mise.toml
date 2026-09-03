@@ -249,6 +249,16 @@ run = "pnpm exec turbo run test --filter='!@webapp-blueprint/e2e'"
 description = "playwright-bdd による E2E。check には含めない（main マージ時のみ実行）"
 run = "pnpm --filter ./e2e run test"
 
+[tasks."test:db"]
+description = """
+Testcontainers による PostgreSQL 統合テスト（docs/recipes/tools/database-testing.md）。
+
+`check` の依存には含めない（`test:e2e` や `trace:local` と同じ扱い）。理由: Docker デーモンの
+常駐を前提とし、オフライン環境での高速な `mise run check` の完走性を維持するため。
+CI では Docker が利用可能なジョブで実行する。
+"""
+run = "pnpm --filter @webapp-blueprint/test-db run test"
+
 [tasks."test:e2e:unused-steps"]
 description = """
 未使用 step 検出ゲート（§4「機械強制」表、受入条件13）。check には含めない

@@ -15,17 +15,18 @@
 
 「〜する場合」で分かれた索引。着手する状況に対応するファイルだけを開けばよい。
 
-| 状況                                           | ファイル                                 | 内容                                                                                                                                  |
-| ---------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript を書く場合                          | [`typescript.md`](typescript.md)         | パッケージマネージャ・lint/format・型検査・テスト・BDD/E2E・重複/未使用検出・アーキテクチャ境界・モノレポのタスクグラフ               |
-| フロントエンドを書く場合                       | [`frontend.md`](frontend.md)             | フレームワーク/ルーティング・状態管理・スタイリング・アニメーション・コンポーネントカタログ・テストのモック・visual regression        |
-| Go を backend に選ぶ場合                       | [`golang.md`](golang.md)                 | lint/format・アーキテクチャ境界・テスト・エラー処理・DI・コンテナ化・脆弱性検査・API 生成系                                           |
-| Python を使う場合                              | [`python.md`](python.md)                 | パッケージ管理・タスクランナー・lint/format・型検査・テスト・アーキテクチャ境界・実験管理（ML）・SDK 隔離                             |
-| インフラ・デプロイを触る場合                   | [`infrastructure.md`](infrastructure.md) | IaC・クラウドランタイム・デプロイ CLI・コンテナ・認証方式・secrets・ローカル開発 URL・エミュレータ                                    |
-| CI を組む場合                                  | [`ci.md`](ci.md)                         | workflow lint・ローカル実行・依存更新・脆弱性/SAST・キャッシュ・差分実行・PR 自動レビュー・reusable workflow                          |
-| 観測性(ログ・トレース)を選ぶ場合               | [`observability.md`](observability.md)   | 構造化ログ・OpenTelemetry(分散トレーシング)・exporter・サンプリング・ログ相関・エラー追跡 SaaS・監査ペイロード分離                    |
-| 複雑度・品質ゲートを検討する場合(言語横断)     | [`quality-gates.md`](quality-gates.md)   | 言語横断の循環的/認知的複雑度・構造検査(codopsy)。oxlint の複雑度ルールとの関係・除外理由                                             |
-| 複数ステップのタスクをエージェントに任せる場合 | [`ramune.md`](ramune.md)                 | 検証付きタスクグラフ実行機構(Planner/Worker の構造的分離・DAG 状態外在化)。既定で組み込み。ramune モードの入り方と fail-closed の範囲 |
+| 状況                                           | ファイル                                     | 内容                                                                                                                                  |
+| ---------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript を書く場合                          | [`typescript.md`](typescript.md)             | パッケージマネージャ・lint/format・型検査・テスト・BDD/E2E・重複/未使用検出・アーキテクチャ境界・モノレポのタスクグラフ               |
+| フロントエンドを書く場合                       | [`frontend.md`](frontend.md)                 | フレームワーク/ルーティング・状態管理・スタイリング・アニメーション・コンポーネントカタログ・テストのモック・visual regression        |
+| Go を backend に選ぶ場合                       | [`golang.md`](golang.md)                     | lint/format・アーキテクチャ境界・テスト・エラー処理・DI・コンテナ化・脆弱性検査・API 生成系                                           |
+| Python を使う場合                              | [`python.md`](python.md)                     | パッケージ管理・タスクランナー・lint/format・型検査・テスト・アーキテクチャ境界・実験管理（ML）・SDK 隔離                             |
+| インフラ・デプロイを触る場合                   | [`infrastructure.md`](infrastructure.md)     | IaC・クラウドランタイム・デプロイ CLI・コンテナ・認証方式・secrets・ローカル開発 URL・エミュレータ                                    |
+| CI を組む場合                                  | [`ci.md`](ci.md)                             | workflow lint・ローカル実行・依存更新・脆弱性/SAST・キャッシュ・差分実行・PR 自動レビュー・reusable workflow                          |
+| 観測性(ログ・トレース)を選ぶ場合               | [`observability.md`](observability.md)       | 構造化ログ・OpenTelemetry(分散トレーシング)・exporter・サンプリング・ログ相関・エラー追跡 SaaS・監査ペイロード分離                    |
+| 複雑度・品質ゲートを検討する場合(言語横断)     | [`quality-gates.md`](quality-gates.md)       | 言語横断の循環的/認知的複雑度・構造検査(codopsy)。oxlint の複雑度ルールとの関係・除外理由                                             |
+| 複数ステップのタスクをエージェントに任せる場合 | [`ramune.md`](ramune.md)                     | 検証付きタスクグラフ実行機構(Planner/Worker の構造的分離・DAG 状態外在化)。既定で組み込み。ramune モードの入り方と fail-closed の範囲 |
+| DB 統合テストを行う場合                        | [`database-testing.md`](database-testing.md) | Testcontainers（`@testcontainers/postgresql`）による実 DB 検証・Vitest globalSetup パターン・fail-fast なライフサイクル管理           |
 
 **追加言語・領域を検討したがまだファイルが無い場合**: `docs-triage` を通し、新規ファイルとして追加する（既存ファイルへの吹き溜まりにしない。原則 7「拡張はファイルの追加で表現される」）。
 

@@ -53,6 +53,10 @@
     "contract": {
       "entry": [],
     },
+    "packages/test-db": {
+      "entry": ["src/index.ts!"],
+      "project": ["src/**/*.ts!"],
+    },
     "tools/architecture": {
       "entry": ["src/checker.ts", "src/rules/*.ts", "test/**/*.test.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"],
