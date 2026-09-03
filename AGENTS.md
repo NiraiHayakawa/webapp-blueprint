@@ -44,6 +44,7 @@
 | ビジュアルリグレッション | 未配線。導入時に参照                    | [docs/recipes/visual-regression.md](docs/recipes/visual-regression.md)                    |
 | CI 差分実行              | 未配線。CI 所要 10 分超えで検討         | [docs/recipes/affected-ci.md](docs/recipes/affected-ci.md)                                |
 | PR プレビュー環境        | 未配線。導入時に参照                    | [docs/recipes/preview-environments.md](docs/recipes/preview-environments.md)              |
+| DB 統合テスト            | 未配線。導入時に参照                    | [docs/recipes/tools/database-testing.md](docs/recipes/tools/database-testing.md)          |
 | ツール選定               | 新しい言語・領域に手を出すとき参照      | [docs/recipes/tools/](docs/recipes/tools/README.md)                                       |
 
 ## コマンド

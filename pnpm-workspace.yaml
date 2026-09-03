@@ -13,6 +13,10 @@ packages:
 
 allowBuilds:
   "@scarf/scarf": true
+  # testcontainers (docker-modem) が推移的に参照する ssh2 / cpu-features。
+  # postinstall のビルドスクリプトを実行しなくても Pure JS フォールバックで
+  # 正常に動作するため、安全側に倒して false に設定する（最小権限の原則）。
+  cpu-features: false
   esbuild: true
   # protobufjs は @opentelemetry/sdk-node が内蔵する OTLP exporter 群
   # （本テンプレートでは配線しない実際の送り先）の依存として入るだけで、
@@ -20,6 +24,7 @@ allowBuilds:
   # false にする（原則4「抑制には理由を書く」と同型の判断: 許可も最小権限
   # から始め、必要になった時点で理由付きで true にする）。
   protobufjs: false
+  ssh2: false
 
 # one-version rule（§3）: 共有依存はここに一元宣言し、各 package.json は
 # "catalog:" でのみ参照する。パッケージ間のバージョン分裂を構造的に禁止する。
@@ -86,6 +91,8 @@ catalog:
   playwright: 1.62.1
   "@playwright/test": 1.62.1
   playwright-bdd: 9.2.0
+  testcontainers: 12.1.0
+  "@testcontainers/postgresql": 12.1.0
 
   # tools/ramune/viewer の dev/build/preview。新規選定ではなく、vitest 4.1.10 /
   # blume 1.2.1 の transitive dependency として pnpm-lock.yaml に既に
