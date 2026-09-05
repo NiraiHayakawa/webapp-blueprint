@@ -42,7 +42,7 @@ catalog:
   # e2e/*.mjs が `oxlint --type-aware` の型解決に失敗し、以後の式がすべて
   # 内部の "error" 型として連鎖する（実測: 追加前は 1 ファイルで 100 件超の
   # typescript(no-unsafe-*) が発生し、追加後に解消した）。
-  "@types/node": 26.2.0
+  "@types/node": 26.4.0
 
   # MCP サーバー（tools/ramune/mcp-server。ramune を webapp-blueprint に統合する
   # 移設で新規に持ち込んだ依存。WP5 で spec 2026-07-28（MCP v2）へ移行した。
