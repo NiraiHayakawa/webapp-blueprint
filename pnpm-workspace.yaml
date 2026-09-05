@@ -111,7 +111,7 @@ catalog:
   turbo: 2.10.11
 
   # secret スキャン（原則9）
-  secretlint: 13.0.4
+  secretlint: 13.0.5
   "@secretlint/secretlint-rule-preset-recommend": 13.0.4
 
   # ドキュメントビューア（§6 blume）
