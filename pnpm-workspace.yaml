@@ -112,7 +112,7 @@ catalog:
 
   # secret スキャン（原則9）
   secretlint: 13.0.4
-  "@secretlint/secretlint-rule-preset-recommend": 13.0.4
+  "@secretlint/secretlint-rule-preset-recommend": 13.0.5
 
   # ドキュメントビューア（§6 blume）
   # 1.4.3 に上げない（2026-08-18 判断、dependabot #8 は保留）。1.4.3 は

@@ -37,8 +37,8 @@ catalogs:
       specifier: 1.62.1
       version: 1.62.1
     '@secretlint/secretlint-rule-preset-recommend':
-      specifier: 13.0.4
-      version: 13.0.4
+      specifier: 13.0.5
+      version: 13.0.5
     '@testcontainers/postgresql':
       specifier: 12.1.0
       version: 12.1.0
@@ -106,7 +106,7 @@ importers:
         version: 1.79.0
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: 'catalog:'
-        version: 13.0.4
+        version: 13.0.5
       '@types/node':
         specifier: 'catalog:'
         version: 26.2.0
@@ -2150,8 +2150,8 @@ packages:
   '@secretlint/resolver@13.0.4':
     resolution: {integrity: sha512-+s4fRFctBlAbHu4H8lRLj/e6dyDIGpIM2QLAJWgaMJUn9bFxetjRBQEv/HD2U4ohpGHYURLMkDcnS3iZdSTmGg==}
 
-  '@secretlint/secretlint-rule-preset-recommend@13.0.4':
-    resolution: {integrity: sha512-Nbcr7tvyKuRF4BKh7RQSCEOaif4gFPH/qjK2ajcoUDGL7HAY/C6PzcsmVR1Y0qQCRqrBuMuXn1onXE+wxNNNsw==}
+  '@secretlint/secretlint-rule-preset-recommend@13.0.5':
+    resolution: {integrity: sha512-dxOmTLf1w7I6rQEFPL8Hkdz6dR1FQXF0bzmTahH/Wyezy89TMPLL+8LbZ2YD8trkmYBnS37zUmOsZT6rMVftKQ==}
     engines: {node: '>=22.0.0'}
 
   '@secretlint/source-creator@13.0.4':
@@ -8069,7 +8069,7 @@ snapshots:
 
   '@secretlint/resolver@13.0.4': {}
 
-  '@secretlint/secretlint-rule-preset-recommend@13.0.4': {}
+  '@secretlint/secretlint-rule-preset-recommend@13.0.5': {}
 
   '@secretlint/source-creator@13.0.4':
     dependencies:
