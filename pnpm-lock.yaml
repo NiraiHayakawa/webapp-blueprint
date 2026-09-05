@@ -91,8 +91,8 @@ catalogs:
       specifier: 4.1.11
       version: 4.1.11
     zod:
-      specifier: 4.4.3
-      version: 4.4.3
+      specifier: 4.5.2
+      version: 4.5.2
 
 overrides:
   nanoid@3: 3.3.18
@@ -247,7 +247,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.5.2
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -272,7 +272,7 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.5.2
 
   tools/ramune/mcp-server:
     dependencies:
@@ -290,7 +290,7 @@ importers:
         version: 8.20.0
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.5.2
     devDependencies:
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
@@ -315,7 +315,7 @@ importers:
         version: link:../graph
       zod:
         specifier: 'catalog:'
-        version: 4.4.3
+        version: 4.5.2
     devDependencies:
       '@amiceli/vitest-cucumber':
         specifier: 'catalog:'
@@ -6411,6 +6411,9 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
+  zod@4.5.2:
+    resolution: {integrity: sha512-XkYXCol10+ba/6F/cueWV+TezUeOqXW0hdeJt5CdXjTYeAgAQg5N03RQdJ80mhfFE72+pblvYMW4wy2Qp4Qbrg==}
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
@@ -7272,11 +7275,11 @@ snapshots:
       eventsource-parser: 3.1.0
       jose: 6.2.8
       pkce-challenge: 5.0.1
-      zod: 4.4.3
+      zod: 4.5.2
 
   '@modelcontextprotocol/core@2.0.0':
     dependencies:
-      zod: 4.4.3
+      zod: 4.5.2
 
   '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.0)':
     dependencies:
@@ -7310,7 +7313,7 @@ snapshots:
   '@modelcontextprotocol/server@2.0.0':
     dependencies:
       '@modelcontextprotocol/core': 2.0.0
-      zod: 4.4.3
+      zod: 4.5.2
 
   '@napi-rs/wasm-runtime@1.2.2(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
@@ -12961,5 +12964,7 @@ snapshots:
   zod@4.1.11: {}
 
   zod@4.4.3: {}
+
+  zod@4.5.2: {}
 
   zwitch@2.0.4: {}
