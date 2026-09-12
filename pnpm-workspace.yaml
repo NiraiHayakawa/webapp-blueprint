@@ -132,7 +132,7 @@ catalog:
   # - @opentelemetry/sdk-trace-base 2.10.0（公開 2026-07-21、19日経過）。
   #   既定 exporter（ConsoleSpanExporter / InMemorySpanExporter）を提供する。
   "@opentelemetry/api": 1.9.1
-  "@opentelemetry/sdk-node": 0.221.0
+  "@opentelemetry/sdk-node": 0.222.0
   "@opentelemetry/sdk-trace-base": 2.10.0
   # trace-context.test.ts / observe.test.ts が W3C propagator を明示的に
   # 登録するために使う（sdk-node の依存グラフに既に含まれる版と揃える）。
